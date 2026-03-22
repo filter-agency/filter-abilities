@@ -147,6 +147,11 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 	 * @return array<string, mixed> List of teams.
 	 */
 	public function execute_list_teams(): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		$teams = wc_memberships_for_teams_get_teams( null, [ 'posts_per_page' => -1 ] );
 
 		if ( ! is_array( $teams ) ) {
@@ -253,6 +258,11 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 	 * @return array<string, mixed> Paginated activities or error.
 	 */
 	public function execute_team_activity( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
 		$contacts_table = $this->get_pwp_table( 'contacts' );
@@ -342,6 +352,11 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 	 * @return array<string, mixed> Team analytics data or error.
 	 */
 	public function execute_team_analytics( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
 		$contacts_table = $this->get_pwp_table( 'contacts' );
