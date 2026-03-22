@@ -1,0 +1,38 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build plugin zip
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          SLUG="filter-abilities"
+          mkdir -p "$SLUG"
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='.claude' \
+            --exclude='.gitignore' \
+            --exclude='node_modules' \
+            --exclude='*.log' \
+            --exclude='.DS_Store' \
+            . "$SLUG/"
+          zip -r "${SLUG}-${VERSION}.zip" "$SLUG"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: filter-abilities-*.zip
+          generate_release_notes: true

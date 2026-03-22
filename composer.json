@@ -1,0 +1,10 @@
+{
+	"name": "filter-agency/filter-abilities",
+	"description": "Exposes WordPress functionality as Abilities API abilities for AI agent interaction via MCP.",
+	"type": "wordpress-plugin",
+	"license": "GPL-2.0-or-later",
+	"require": {
+		"php": ">=7.4",
+		"yahnis-elsts/plugin-update-checker": "^5.6"
+	}
+}
