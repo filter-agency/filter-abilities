@@ -15,6 +15,13 @@ declare(strict_types=1);
  */
 class Filter_Abilities_ACF_Fields extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register abilities (none — ACF support is provided via the content management module).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		// ACF field support is provided via content-management module.
 		// This module exists for auto-detection reporting purposes.

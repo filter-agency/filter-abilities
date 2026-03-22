@@ -344,6 +344,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, rules: array}
 	 */
 	public function execute_list_rules(): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table = $this->get_pwp_table( 'rules' );
 		$rules = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY id DESC", ARRAY_A );
@@ -376,6 +381,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array Result with rule_id/message or error.
 	 */
 	public function execute_manage_rule( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'rules' );
 		$action = sanitize_text_field( $input['action'] ?? '' );
@@ -436,6 +446,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, segments: array}
 	 */
 	public function execute_list_segments(): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table    = $this->get_pwp_table( 'segments' );
 		$segments = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY ID DESC", ARRAY_A );
@@ -469,6 +484,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array Result with segment_id/message or error.
 	 */
 	public function execute_manage_segment( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'segments' );
 		$action = sanitize_text_field( $input['action'] ?? '' );
@@ -533,6 +553,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, rules: array}
 	 */
 	public function execute_list_scoring_rules(): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table = $this->get_pwp_table( 'scoring_rules' );
 		$rules = $wpdb->get_results( "SELECT * FROM {$table} ORDER BY ID DESC", ARRAY_A );
@@ -565,6 +590,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array Result with rule_id/message or error.
 	 */
 	public function execute_manage_scoring_rule( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'scoring_rules' );
 		$action = sanitize_text_field( $input['action'] ?? '' );
@@ -789,6 +819,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array Contact profile or error.
 	 */
 	public function execute_get_contact( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 		$meta_table     = $this->get_pwp_table( 'contacts_meta' );
@@ -865,6 +900,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, contacts: array}
 	 */
 	public function execute_contacts_by_page( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 		$activity_table = $this->get_pwp_table( 'activity' );
@@ -947,6 +987,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, segment_name: string, contacts: array}
 	 */
 	public function execute_contacts_by_segment( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 		$seg_table      = $this->get_pwp_table( 'segments' );
@@ -1019,6 +1064,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array{total: int, activities: array}
 	 */
 	public function execute_activity_feed( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
 		$contacts_table = $this->get_pwp_table( 'contacts' );
@@ -1114,6 +1164,11 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 	 * @return array Activity breakdown, top pages, form submissions, or error.
 	 */
 	public function execute_contact_activity_summary( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
 		$contacts_table = $this->get_pwp_table( 'contacts' );
