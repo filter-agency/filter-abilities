@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Form_Management extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the form management ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-forms',
@@ -12,6 +19,13 @@ class Filter_Abilities_Form_Management extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register list-forms and get-form-entries abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/list-forms', [
 			'label'               => __( 'List Forms', 'filter-abilities' ),
@@ -118,6 +132,13 @@ class Filter_Abilities_Form_Management extends Filter_Abilities_Module_Base {
 		] );
 	}
 
+	/**
+	 * List all Gravity Forms with field definitions and entry counts.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> List of forms.
+	 */
 	public function execute_list_forms(): array {
 		$forms  = GFAPI::get_forms();
 		$result = [];
@@ -150,6 +171,14 @@ class Filter_Abilities_Form_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get paginated form entries with optional date filtering.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Paginated entries or error.
+	 */
 	public function execute_get_form_entries( array $input ): array {
 		$form_id  = absint( $input['form_id'] ?? 0 );
 		$per_page = max( 1, min( absint( $input['per_page'] ?? 20 ), 50 ) );

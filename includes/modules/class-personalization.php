@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register personalization ability categories.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-personalization',
@@ -12,6 +19,13 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register all PersonalizeWP abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		// --- Configuration abilities ---
 		$this->register_ability( 'filter/list-rules', [
@@ -306,15 +320,29 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		] );
 	}
 
-	// --- Helper methods ---
-
-	private function get_pwp_table( string $table ): string {
-		global $wpdb;
-		return $wpdb->prefix . 'pwp_' . $table;
+	/**
+	 * Verify PersonalizeWP tables exist before querying.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array|null Error array if tables missing, null if OK.
+	 */
+	private function check_pwp_tables(): ?array {
+		if ( ! $this->table_exists( $this->get_pwp_table( 'contacts' ) ) ) {
+			return [ 'error' => __( 'PersonalizeWP database tables not found.', 'filter-abilities' ) ];
+		}
+		return null;
 	}
 
 	// --- Configuration execute methods ---
 
+	/**
+	 * List all personalization rules.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array{total: int, rules: array}
+	 */
 	public function execute_list_rules(): array {
 		global $wpdb;
 		$table = $this->get_pwp_table( 'rules' );
@@ -339,6 +367,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Create, update, or delete a personalization rule.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input with 'action' and optional rule fields.
+	 * @return array Result with rule_id/message or error.
+	 */
 	public function execute_manage_rule( array $input ): array {
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'rules' );
@@ -392,6 +428,13 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		}
 	}
 
+	/**
+	 * List all audience segments.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array{total: int, segments: array}
+	 */
 	public function execute_list_segments(): array {
 		global $wpdb;
 		$table    = $this->get_pwp_table( 'segments' );
@@ -417,6 +460,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Create, update, activate, deactivate, or delete an audience segment.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input with 'action' and optional segment fields.
+	 * @return array Result with segment_id/message or error.
+	 */
 	public function execute_manage_segment( array $input ): array {
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'segments' );
@@ -474,6 +525,13 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		}
 	}
 
+	/**
+	 * List all lead scoring rules.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array{total: int, rules: array}
+	 */
 	public function execute_list_scoring_rules(): array {
 		global $wpdb;
 		$table = $this->get_pwp_table( 'scoring_rules' );
@@ -498,6 +556,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Create, update, or delete a lead scoring rule.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input with 'action' and optional scoring rule fields.
+	 * @return array Result with rule_id/message or error.
+	 */
 	public function execute_manage_scoring_rule( array $input ): array {
 		global $wpdb;
 		$table  = $this->get_pwp_table( 'scoring_rules' );
@@ -542,7 +608,20 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 
 	// --- Visitor analytics execute methods ---
 
+	/**
+	 * Get aggregate visitor analytics statistics.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Optional 'start_date' and 'end_date' for period stats.
+	 * @return array Visitor counts, known/unknown breakdown, and average lead score.
+	 */
 	public function execute_visitor_stats( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 
@@ -584,7 +663,20 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * List contacts with filtering, sorting, and pagination.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Filter/sort/pagination parameters.
+	 * @return array{total: int, page: int, contacts: array}
+	 */
 	public function execute_list_contacts( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 		$seg_rel_table  = $this->get_pwp_table( 'segments_relationships' );
@@ -595,10 +687,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		$orderby  = sanitize_text_field( $input['orderby'] ?? 'last_seen' );
 		$order    = in_array( strtoupper( $input['order'] ?? 'DESC' ), [ 'ASC', 'DESC' ], true ) ? strtoupper( $input['order'] ?? 'DESC' ) : 'DESC';
 
-		$allowed_orderby = [ 'last_seen', 'created', 'lead_score', 'first_name' ];
-		if ( ! in_array( $orderby, $allowed_orderby, true ) ) {
-			$orderby = 'last_seen';
-		}
+		// Map input to safe SQL column identifiers to prevent SQL injection via column names.
+		$orderby_map = [
+			'last_seen'  => 'c.last_seen',
+			'created'    => 'c.created',
+			'lead_score' => 'c.lead_score',
+			'first_name' => 'c.first_name',
+		];
+		$safe_orderby = $orderby_map[ $orderby ] ?? $orderby_map['last_seen'];
 
 		$where  = [];
 		$joins  = '';
@@ -657,8 +753,8 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 			? (int) $wpdb->get_var( $count_sql )
 			: (int) $wpdb->get_var( $wpdb->prepare( $count_sql, ...$params ) );
 
-		// Data query.
-		$data_sql = "SELECT DISTINCT c.* FROM {$contacts_table} c {$joins} {$where_sql} ORDER BY c.{$orderby} {$order} LIMIT %d OFFSET %d";
+		// Data query — $safe_orderby and $order are validated above, not user-supplied raw values.
+		$data_sql = "SELECT DISTINCT c.* FROM {$contacts_table} c {$joins} {$where_sql} ORDER BY {$safe_orderby} {$order} LIMIT %d OFFSET %d";
 		$params[] = $per_page;
 		$params[] = $offset;
 		$contacts = $wpdb->get_results( $wpdb->prepare( $data_sql, ...$params ), ARRAY_A );
@@ -684,6 +780,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get a full contact profile with metadata, segments, and recent activities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Must include 'contact_id'.
+	 * @return array Contact profile or error.
+	 */
 	public function execute_get_contact( array $input ): array {
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
@@ -752,6 +856,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Find contacts who visited a given URL path.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Must include 'url_path'; optional date filters and pagination.
+	 * @return array{total: int, contacts: array}
+	 */
 	public function execute_contacts_by_page( array $input ): array {
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
@@ -826,6 +938,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * List all contacts belonging to a specific segment.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Must include 'segment_id'; optional sorting and pagination.
+	 * @return array{total: int, segment_name: string, contacts: array}
+	 */
 	public function execute_contacts_by_segment( array $input ): array {
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
@@ -839,10 +959,13 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		$orderby    = sanitize_text_field( $input['orderby'] ?? 'lead_score' );
 		$order      = in_array( strtoupper( $input['order'] ?? 'DESC' ), [ 'ASC', 'DESC' ], true ) ? strtoupper( $input['order'] ?? 'DESC' ) : 'DESC';
 
-		$allowed_orderby = [ 'lead_score', 'last_seen', 'created' ];
-		if ( ! in_array( $orderby, $allowed_orderby, true ) ) {
-			$orderby = 'lead_score';
-		}
+		// Map input to safe SQL column identifiers to prevent SQL injection via column names.
+		$orderby_map = [
+			'lead_score' => 'c.lead_score',
+			'last_seen'  => 'c.last_seen',
+			'created'    => 'c.created',
+		];
+		$safe_orderby = $orderby_map[ $orderby ] ?? $orderby_map['lead_score'];
 
 		$segment_name = $wpdb->get_var( $wpdb->prepare(
 			"SELECT name FROM {$seg_table} WHERE ID = %d",
@@ -854,11 +977,12 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 			$segment_id
 		) );
 
+		// $safe_orderby and $order are validated above, not user-supplied raw values.
 		$contacts = $wpdb->get_results( $wpdb->prepare(
 			"SELECT c.* FROM {$contacts_table} c
 			 INNER JOIN {$seg_rel_table} sr ON c.ID = sr.contact_id
 			 WHERE sr.segment_id = %d
-			 ORDER BY c.{$orderby} {$order}
+			 ORDER BY {$safe_orderby} {$order}
 			 LIMIT %d OFFSET %d",
 			$segment_id,
 			$per_page,
@@ -886,6 +1010,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get a paginated activity feed across all contacts.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Optional filters: activity_type, url_path, date range, pagination.
+	 * @return array{total: int, activities: array}
+	 */
 	public function execute_activity_feed( array $input ): array {
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
@@ -973,6 +1105,14 @@ class Filter_Abilities_Personalization extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get an activity summary for a specific contact.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Must include 'contact_id'.
+	 * @return array Activity breakdown, top pages, form submissions, or error.
+	 */
 	public function execute_contact_activity_summary( array $input ): array {
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );

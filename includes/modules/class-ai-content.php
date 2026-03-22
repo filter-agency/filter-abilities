@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the AI content ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-ai',
@@ -12,6 +19,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register all AI content abilities (discovery, batch, status, and settings).
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		// Discovery abilities.
 		$this->register_ability( 'filter/ai-missing-alt-text', [
@@ -199,6 +213,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		return $hooks[ $batch_type ] ?? '';
 	}
 
+	/**
+	 * Get count of images missing alt text, split by supported and unsupported MIME types.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, int> Image alt text counts.
+	 */
 	public function execute_missing_alt_text(): array {
 		$total_images     = function_exists( 'filter_ai_get_images_count' ) ? filter_ai_get_images_count() : 0;
 		$missing_supported   = function_exists( 'filter_ai_get_images_without_alt_text_count' )
@@ -213,6 +234,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get count of posts missing Yoast SEO titles, grouped by post type.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Missing title counts.
+	 */
 	public function execute_missing_seo_titles(): array {
 		$by_post_type  = [];
 		$total_missing = 0;
@@ -233,6 +261,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get count of posts missing Yoast meta descriptions, grouped by post type.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Missing description counts.
+	 */
 	public function execute_missing_seo_descriptions(): array {
 		$by_post_type  = [];
 		$total_missing = 0;
@@ -253,6 +288,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Queue all images missing alt text for batch AI generation.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Queued count and message, or error.
+	 */
 	public function execute_batch_alt_text(): array {
 		if ( ! function_exists( 'filter_ai_reset_batch' ) || ! function_exists( 'filter_ai_get_images_without_alt_text' ) ) {
 			return [ 'error' => __( 'Filter AI batch functions not available.', 'filter-abilities' ) ];
@@ -283,6 +325,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Queue all posts missing SEO titles for batch AI generation.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Queued count and message, or error.
+	 */
 	public function execute_batch_seo_titles(): array {
 		if ( ! function_exists( 'filter_ai_reset_batch' ) || ! function_exists( 'filter_ai_get_posts_missing_seo_title' ) ) {
 			return [ 'error' => __( 'Filter AI batch functions not available.', 'filter-abilities' ) ];
@@ -313,6 +362,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Queue all posts missing meta descriptions for batch AI generation.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Queued count and message, or error.
+	 */
 	public function execute_batch_seo_descriptions(): array {
 		if ( ! function_exists( 'filter_ai_reset_batch' ) || ! function_exists( 'filter_ai_get_posts_missing_seo_meta_description' ) ) {
 			return [ 'error' => __( 'Filter AI batch functions not available.', 'filter-abilities' ) ];
@@ -343,6 +399,14 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get current batch processing status for a specific batch type.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Batch status counts or error.
+	 */
 	public function execute_batch_status( array $input ): array {
 		$batch_type = sanitize_text_field( $input['batch_type'] ?? '' );
 		$hook       = $this->get_hook_for_batch_type( $batch_type );
@@ -367,6 +431,14 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Cancel all pending actions for a given batch type.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Cancellation message or error.
+	 */
 	public function execute_batch_cancel( array $input ): array {
 		$batch_type = sanitize_text_field( $input['batch_type'] ?? '' );
 		$hook       = $this->get_hook_for_batch_type( $batch_type );
@@ -386,6 +458,13 @@ class Filter_Abilities_AI_Content extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Get current Filter AI plugin settings.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> AI settings data.
+	 */
 	public function execute_ai_settings(): array {
 		$settings = filter_ai_get_settings();
 

@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register team listing, contacts, activity, and analytics abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/list-teams', [
 			'label'               => __( 'List Teams', 'filter-abilities' ),
@@ -99,11 +106,6 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 
 	// --- Helpers ---
 
-	private function get_pwp_table( string $table ): string {
-		global $wpdb;
-		return $wpdb->prefix . 'pwp_' . $table;
-	}
-
 	private function get_team_name( int $team_id ): string {
 		$team = wc_memberships_for_teams_get_team( $team_id );
 		return $team ? $team->get_name() : '';
@@ -121,8 +123,29 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 		return array_map( 'absint', $ids );
 	}
 
+	/**
+	 * Verify PersonalizeWP tables exist before querying.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array|null Error array if tables missing, null if OK.
+	 */
+	private function check_pwp_tables(): ?array {
+		if ( ! $this->table_exists( $this->get_pwp_table( 'contacts' ) ) ) {
+			return [ 'error' => __( 'PersonalizeWP database tables not found.', 'filter-abilities' ) ];
+		}
+		return null;
+	}
+
 	// --- Execute methods ---
 
+	/**
+	 * List all WooCommerce teams with member and contact counts.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> List of teams.
+	 */
 	public function execute_list_teams(): array {
 		$teams = wc_memberships_for_teams_get_teams( null, [ 'posts_per_page' => -1 ] );
 
@@ -149,7 +172,20 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 		];
 	}
 
+	/**
+	 * List PersonalizeWP contacts belonging to a specific team.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Paginated contacts or error.
+	 */
 	public function execute_team_contacts( array $input ): array {
+		$table_error = $this->check_pwp_tables();
+		if ( $table_error ) {
+			return $table_error;
+		}
+
 		global $wpdb;
 		$contacts_table = $this->get_pwp_table( 'contacts' );
 
@@ -160,10 +196,13 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 		$orderby   = sanitize_text_field( $input['orderby'] ?? 'lead_score' );
 		$order     = in_array( strtoupper( $input['order'] ?? 'DESC' ), [ 'ASC', 'DESC' ], true ) ? strtoupper( $input['order'] ?? 'DESC' ) : 'DESC';
 
-		$allowed_orderby = [ 'lead_score', 'last_seen', 'first_name' ];
-		if ( ! in_array( $orderby, $allowed_orderby, true ) ) {
-			$orderby = 'lead_score';
-		}
+		// Map input to safe SQL column identifiers to prevent SQL injection via column names.
+		$orderby_map = [
+			'lead_score' => 'lead_score',
+			'last_seen'  => 'last_seen',
+			'first_name' => 'first_name',
+		];
+		$safe_orderby = $orderby_map[ $orderby ] ?? $orderby_map['lead_score'];
 
 		$contact_ids = $this->get_team_contact_ids( $team_id );
 
@@ -178,8 +217,9 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 
 		$placeholders = implode( ',', array_fill( 0, count( $contact_ids ), '%d' ) );
 
+		// $safe_orderby and $order are validated above, not user-supplied raw values.
 		$contacts = $wpdb->get_results( $wpdb->prepare(
-			"SELECT * FROM {$contacts_table} WHERE ID IN ({$placeholders}) ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d",
+			"SELECT * FROM {$contacts_table} WHERE ID IN ({$placeholders}) ORDER BY {$safe_orderby} {$order} LIMIT %d OFFSET %d",
 			...array_merge( $contact_ids, [ $per_page, $offset ] )
 		), ARRAY_A );
 
@@ -204,6 +244,14 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 		];
 	}
 
+	/**
+	 * Get paginated activity feed for all members of a team.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Paginated activities or error.
+	 */
 	public function execute_team_activity( array $input ): array {
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );
@@ -285,6 +333,14 @@ class Filter_Abilities_Personalization_Teams extends Filter_Abilities_Module_Bas
 		];
 	}
 
+	/**
+	 * Get aggregate analytics for a team including activity breakdown and top pages.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Team analytics data or error.
+	 */
 	public function execute_team_analytics( array $input ): array {
 		global $wpdb;
 		$activity_table = $this->get_pwp_table( 'activity' );

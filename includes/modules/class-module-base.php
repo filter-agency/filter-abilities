@@ -68,4 +68,38 @@ abstract class Filter_Abilities_Module_Base {
 			'description' => $description,
 		] );
 	}
+
+	/**
+	 * Get a prefixed PersonalizeWP table name.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $table Table name without prefix (e.g. 'contacts').
+	 * @return string Full table name with wpdb prefix.
+	 */
+	protected function get_pwp_table( string $table ): string {
+		global $wpdb;
+		return $wpdb->prefix . 'pwp_' . $table;
+	}
+
+	/**
+	 * Check whether a database table exists. Results are cached per-request.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param string $table Full table name (including prefix).
+	 * @return bool
+	 */
+	protected function table_exists( string $table ): bool {
+		static $cache = [];
+
+		if ( ! isset( $cache[ $table ] ) ) {
+			global $wpdb;
+			$cache[ $table ] = (bool) $wpdb->get_var(
+				$wpdb->prepare( 'SHOW TABLES LIKE %s', $table )
+			);
+		}
+
+		return $cache[ $table ];
+	}
 }

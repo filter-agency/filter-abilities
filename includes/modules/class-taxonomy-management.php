@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Taxonomy_Management extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the taxonomy management ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-taxonomy',
@@ -12,6 +19,13 @@ class Filter_Abilities_Taxonomy_Management extends Filter_Abilities_Module_Base 
 		);
 	}
 
+	/**
+	 * Register list-terms and manage-term abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/list-terms', [
 			'label'               => __( 'List Terms', 'filter-abilities' ),
@@ -122,6 +136,14 @@ class Filter_Abilities_Taxonomy_Management extends Filter_Abilities_Module_Base 
 		] );
 	}
 
+	/**
+	 * List terms for a given taxonomy with optional search and pagination.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> List of terms or error.
+	 */
 	public function execute_list_terms( array $input ): array {
 		$taxonomy   = sanitize_text_field( $input['taxonomy'] ?? '' );
 		$hide_empty = (bool) ( $input['hide_empty'] ?? false );
@@ -165,6 +187,14 @@ class Filter_Abilities_Taxonomy_Management extends Filter_Abilities_Module_Base 
 		];
 	}
 
+	/**
+	 * Create, update, or delete a taxonomy term.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Result with term data or error.
+	 */
 	public function execute_manage_term( array $input ): array {
 		$action   = sanitize_text_field( $input['action'] ?? '' );
 		$taxonomy = sanitize_text_field( $input['taxonomy'] ?? '' );
