@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Media_Management extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the media management ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-media',
@@ -12,6 +19,13 @@ class Filter_Abilities_Media_Management extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register the list-media ability.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/list-media', [
 			'label'               => __( 'List Media', 'filter-abilities' ),
@@ -79,6 +93,14 @@ class Filter_Abilities_Media_Management extends Filter_Abilities_Module_Base {
 		] );
 	}
 
+	/**
+	 * List media library items with optional MIME type, search, and alt text filters.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Paginated media items.
+	 */
 	public function execute_list_media( array $input ): array {
 		$mime_type        = sanitize_text_field( $input['mime_type'] ?? 'all' );
 		$per_page         = max( 1, min( absint( $input['per_page'] ?? 20 ), 50 ) );

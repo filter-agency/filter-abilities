@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register content management categories.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-content',
@@ -12,6 +19,13 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register content management abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/list-posts', [
 			'label'               => __( 'List Posts', 'filter-abilities' ),
@@ -235,6 +249,14 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		] );
 	}
 
+	/**
+	 * Execute the list-posts ability.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input containing post_type, status, per_page, page, orderby, order, and search.
+	 * @return array Paginated list of posts or error.
+	 */
 	public function execute_list_posts( array $input ): array {
 		$post_type = sanitize_text_field( $input['post_type'] ?? 'post' );
 		$status    = sanitize_text_field( $input['status'] ?? 'publish' );
@@ -249,6 +271,18 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 
 		if ( ! post_type_exists( $post_type ) ) {
 			return [ 'error' => sprintf( __( 'Post type "%s" does not exist.', 'filter-abilities' ), $post_type ) ];
+		}
+
+		// Verify user has edit capability for the requested post type.
+		$post_type_obj = get_post_type_object( $post_type );
+		if ( ! current_user_can( $post_type_obj->cap->edit_posts ) ) {
+			return [ 'error' => __( 'You do not have permission to view this post type.', 'filter-abilities' ) ];
+		}
+
+		// Validate status against allowlist.
+		$allowed_statuses = [ 'publish', 'draft', 'pending', 'private', 'future', 'any' ];
+		if ( ! in_array( $status, $allowed_statuses, true ) ) {
+			$status = 'publish';
 		}
 
 		$args = [
@@ -292,6 +326,14 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Execute the get-post ability.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input containing post_id.
+	 * @return array Post data including content, taxonomies, and ACF fields, or error.
+	 */
 	public function execute_get_post( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -354,6 +396,14 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Execute the create-post ability.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input containing title, post_type, content, status, excerpt, acf_fields, and taxonomy_terms.
+	 * @return array Created post data or error.
+	 */
 	public function execute_create_post( array $input ): array {
 		$post_type = sanitize_text_field( $input['post_type'] ?? 'post' );
 
@@ -366,11 +416,21 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			return [ 'error' => __( 'You do not have permission to create this post type.', 'filter-abilities' ) ];
 		}
 
+		// Validate and check capability for requested status.
+		$status          = sanitize_text_field( $input['status'] ?? 'draft' );
+		$allowed_statuses = [ 'draft', 'pending', 'publish', 'private' ];
+		if ( ! in_array( $status, $allowed_statuses, true ) ) {
+			$status = 'draft';
+		}
+		if ( 'publish' === $status && ! current_user_can( $post_type_obj->cap->publish_posts ) ) {
+			return [ 'error' => __( 'You do not have permission to publish this post type.', 'filter-abilities' ) ];
+		}
+
 		$post_data = [
 			'post_type'    => $post_type,
 			'post_title'   => sanitize_text_field( $input['title'] ?? '' ),
 			'post_content' => wp_kses_post( $input['content'] ?? '' ),
-			'post_status'  => sanitize_text_field( $input['status'] ?? 'draft' ),
+			'post_status'  => $status,
 		];
 
 		if ( ! empty( $input['excerpt'] ) ) {
@@ -392,9 +452,13 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			}
 		}
 
-		// Set ACF fields if available.
+		// Set ACF fields if available. String values are sanitised here;
+		// arrays and other types are left for ACF's own validation layer.
 		if ( ! empty( $input['acf_fields'] ) && is_array( $input['acf_fields'] ) && function_exists( 'update_field' ) ) {
 			foreach ( $input['acf_fields'] as $field_name => $value ) {
+				if ( is_string( $value ) ) {
+					$value = wp_kses_post( $value );
+				}
 				update_field( sanitize_text_field( $field_name ), $value, $post_id );
 			}
 		}
@@ -407,6 +471,14 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Execute the update-post ability.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array $input Ability input containing post_id and optional title, content, status, excerpt, acf_fields, and taxonomy_terms.
+	 * @return array Updated post data or error.
+	 */
 	public function execute_update_post( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -428,7 +500,15 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			$post_data['post_content'] = wp_kses_post( $input['content'] );
 		}
 		if ( isset( $input['status'] ) ) {
-			$post_data['post_status'] = sanitize_text_field( $input['status'] );
+			$status          = sanitize_text_field( $input['status'] );
+			$allowed_statuses = [ 'draft', 'pending', 'publish', 'private' ];
+			if ( ! in_array( $status, $allowed_statuses, true ) ) {
+				return [ 'error' => sprintf( __( 'Invalid status "%s".', 'filter-abilities' ), $status ) ];
+			}
+			if ( 'publish' === $status && ! current_user_can( 'publish_post', $post_id ) ) {
+				return [ 'error' => __( 'You do not have permission to publish this post.', 'filter-abilities' ) ];
+			}
+			$post_data['post_status'] = $status;
 		}
 		if ( isset( $input['excerpt'] ) ) {
 			$post_data['post_excerpt'] = sanitize_text_field( $input['excerpt'] );
@@ -449,9 +529,13 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			}
 		}
 
-		// Set ACF fields if available.
+		// Set ACF fields if available. String values are sanitised here;
+		// arrays and other types are left for ACF's own validation layer.
 		if ( ! empty( $input['acf_fields'] ) && is_array( $input['acf_fields'] ) && function_exists( 'update_field' ) ) {
 			foreach ( $input['acf_fields'] as $field_name => $value ) {
+				if ( is_string( $value ) ) {
+					$value = wp_kses_post( $value );
+				}
 				update_field( sanitize_text_field( $field_name ), $value, $post_id );
 			}
 		}

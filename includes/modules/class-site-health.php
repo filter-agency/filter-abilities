@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_Site_Health extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the site health ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-site',
@@ -12,6 +19,13 @@ class Filter_Abilities_Site_Health extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register site-info and content-stats abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/site-info', [
 			'label'               => __( 'Site Info', 'filter-abilities' ),
@@ -106,6 +120,13 @@ class Filter_Abilities_Site_Health extends Filter_Abilities_Module_Base {
 		] );
 	}
 
+	/**
+	 * Return site information including theme, plugins, post types, and taxonomies.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Site information data.
+	 */
 	public function execute_site_info(): array {
 		$theme = wp_get_theme();
 
@@ -147,6 +168,13 @@ class Filter_Abilities_Site_Health extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Return content statistics including post counts, media count, and user count.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return array<string, mixed> Content statistics data.
+	 */
 	public function execute_content_stats(): array {
 		$post_type_stats = [];
 		foreach ( get_post_types( [ 'public' => true ] ) as $pt ) {

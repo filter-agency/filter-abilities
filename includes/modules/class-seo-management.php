@@ -4,6 +4,13 @@ declare(strict_types=1);
 
 class Filter_Abilities_SEO_Management extends Filter_Abilities_Module_Base {
 
+	/**
+	 * Register the SEO management ability category.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_categories(): void {
 		$this->register_category(
 			'filter-seo',
@@ -12,6 +19,13 @@ class Filter_Abilities_SEO_Management extends Filter_Abilities_Module_Base {
 		);
 	}
 
+	/**
+	 * Register get-seo-meta, update-seo-meta, and find-seo-issues abilities.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @return void
+	 */
 	public function register_abilities(): void {
 		$this->register_ability( 'filter/get-seo-meta', [
 			'label'               => __( 'Get SEO Meta', 'filter-abilities' ),
@@ -148,6 +162,14 @@ class Filter_Abilities_SEO_Management extends Filter_Abilities_Module_Base {
 		] );
 	}
 
+	/**
+	 * Get Yoast SEO metadata for a given post.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> SEO metadata or error.
+	 */
 	public function execute_get_seo_meta( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -173,6 +195,14 @@ class Filter_Abilities_SEO_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Update Yoast SEO metadata fields for a given post.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> List of updated fields or error.
+	 */
 	public function execute_update_seo_meta( array $input ): array {
 		$post_id = absint( $input['post_id'] ?? 0 );
 		$post    = get_post( $post_id );
@@ -209,6 +239,14 @@ class Filter_Abilities_SEO_Management extends Filter_Abilities_Module_Base {
 		];
 	}
 
+	/**
+	 * Find published posts missing SEO title, description, or focus keyword.
+	 *
+	 * @since 1.2.0
+	 *
+	 * @param array<string, mixed> $input Ability input parameters.
+	 * @return array<string, mixed> Posts with SEO issues.
+	 */
 	public function execute_find_seo_issues( array $input ): array {
 		$issue_type = sanitize_text_field( $input['issue_type'] ?? 'all' );
 		$post_type  = sanitize_text_field( $input['post_type'] ?? 'any' );
