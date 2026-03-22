@@ -28,4 +28,4 @@ require_once FILTER_ABILITIES_PATH . 'includes/class-filter-abilities.php';
 
 add_action( 'plugins_loaded', function () {
 	Filter_Abilities::instance();
-} );
+}, 20 );
