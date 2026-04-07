@@ -88,6 +88,12 @@ class Filter_Abilities {
 				'label' => 'AI Content (Filter AI)',
 				'check' => fn() => function_exists( 'filter_ai_get_settings' ),
 			],
+			'redirection' => [
+				'file'  => 'class-redirection.php',
+				'class' => 'Filter_Abilities_Redirection',
+				'label' => 'Redirection Management',
+				'check' => fn() => defined( 'REDIRECTION_VERSION' ),
+			],
 			'personalization' => [
 				'file'  => 'class-personalization.php',
 				'class' => 'Filter_Abilities_Personalization',
