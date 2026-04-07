@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.3.1
+
+### Added
+- **Content Management** — 3 new abilities:
+  - `filter/get-post-by-url` — Look up a post by URL path or slug, returns full post data
+  - `filter/delete-post` — Trash or permanently delete a post
+  - `filter/bulk-post-actions` — Bulk publish, draft, trash, restore, or permanently delete multiple posts
+
 ## 1.3.0
 
 ### Added
