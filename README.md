@@ -1,6 +1,6 @@
 # Filter Abilities
 
-A WordPress plugin that exposes WordPress functionality as **Abilities API** abilities for AI agent interaction via the **Model Context Protocol (MCP)**. It auto-detects compatible plugins and registers relevant abilities so AI agents can read, create, and manage WordPress content, media, SEO, forms, personalization, and more.
+A WordPress plugin that exposes WordPress functionality as **Abilities API** abilities for AI agent interaction via the **Model Context Protocol (MCP)**. It auto-detects compatible plugins and registers relevant abilities so AI agents can read, create, and manage WordPress content, media, SEO, forms, redirects, personalization, and more.
 
 ## Requirements
 
@@ -72,6 +72,18 @@ Enhances the Content Management abilities with ACF field data (read/write). No s
 | `filter/list-forms` | List all forms with field definitions and entry counts |
 | `filter/get-form-entries` | Get form entries with date filtering and pagination |
 
+#### Redirection Management (`filter-redirection`) — requires [Redirection](https://redirection.me/)
+| Ability | Description |
+|---|---|
+| `filter/list-redirects` | List redirect rules with filtering by status, group, and search. Supports pagination and sorting |
+| `filter/list-redirect-groups` | List redirect groups with their redirect counts and status |
+| `filter/list-404-errors` | View 404 errors with optional URL grouping to identify most-hit missing pages |
+| `filter/get-redirect-logs` | View redirect hit logs to verify redirects are working and see traffic patterns |
+| `filter/redirect-stats` | Aggregate stats: total/enabled/disabled redirects, top 404 URLs, most-used redirects |
+| `filter/check-redirect` | Check if a URL path has a matching redirect rule (exact and regex matching) |
+| `filter/manage-redirect` | Create, update, or delete a redirect rule |
+| `filter/bulk-manage-redirects` | Enable, disable, delete, or reset hit counters for multiple redirects |
+
 #### AI Content (`filter-ai`) — requires Filter AI
 | Ability | Description |
 |---|---|
@@ -118,7 +130,7 @@ For this plugin to be useful, the following must be set up on the WordPress site
 2. **MCP Adapter Plugin** — install and activate the [WordPress MCP Adapter](https://github.com/Jenil/mcp-wordpress-remote) (or equivalent) that bridges the Abilities API to an MCP transport. This is what makes the abilities callable by AI agents.
 3. **MCP Client Configuration** — your AI agent or tool (e.g. Claude Code, Claude Desktop) must be configured to connect to the WordPress site's MCP endpoint using the REST transport provided by the adapter.
 4. **Authentication** — the MCP adapter must be configured with appropriate authentication (application passwords, OAuth, etc.) so that ability calls are authorized. Abilities that modify content require a user with sufficient WordPress capabilities.
-5. **Optional Plugins** — install any of the supported plugins (ACF, Yoast SEO, Gravity Forms, PersonalizeWP, Filter AI, WooCommerce Teams) to unlock their corresponding abilities. The plugin detects these automatically at runtime.
+5. **Optional Plugins** — install any of the supported plugins (ACF, Yoast SEO, Gravity Forms, Redirection, PersonalizeWP, Filter AI, WooCommerce Teams) to unlock their corresponding abilities. The plugin detects these automatically at runtime.
 
 ## License
 
