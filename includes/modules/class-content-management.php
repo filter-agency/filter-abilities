@@ -195,6 +195,113 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			},
 		] );
 
+		$this->register_ability( 'filter/get-post-by-url', [
+			'label'               => __( 'Get Post by URL', 'filter-abilities' ),
+			'description'         => __( 'Look up a post by its URL path or slug. Returns the same detailed data as get-post including content, taxonomies, and ACF fields.', 'filter-abilities' ),
+			'category'            => 'filter-content',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'url' => [
+						'type'        => 'string',
+						'description' => __( 'URL path (e.g. /about-us/) or full URL. Also accepts a plain slug (e.g. about-us).', 'filter-abilities' ),
+					],
+				],
+				'required'   => [ 'url' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'id'             => [ 'type' => 'integer' ],
+					'title'          => [ 'type' => 'string' ],
+					'content'        => [ 'type' => 'string' ],
+					'excerpt'        => [ 'type' => 'string' ],
+					'status'         => [ 'type' => 'string' ],
+					'post_type'      => [ 'type' => 'string' ],
+					'date'           => [ 'type' => 'string' ],
+					'modified'       => [ 'type' => 'string' ],
+					'permalink'      => [ 'type' => 'string' ],
+					'author'         => [ 'type' => 'string' ],
+					'featured_image' => [ 'type' => 'string' ],
+					'taxonomies'     => [ 'type' => 'object' ],
+					'acf_fields'     => [ 'type' => 'object' ],
+				],
+			],
+			'execute_callback'    => [ $this, 'execute_get_post_by_url' ],
+			'permission_callback' => function () {
+				return current_user_can( 'edit_posts' );
+			},
+		] );
+
+		$this->register_ability( 'filter/delete-post', [
+			'label'               => __( 'Delete Post', 'filter-abilities' ),
+			'description'         => __( 'Trash or permanently delete a post. Defaults to trashing (reversible). Use force=true to permanently delete.', 'filter-abilities' ),
+			'category'            => 'filter-content',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'post_id' => [
+						'type'        => 'integer',
+						'description' => __( 'The post ID to delete.', 'filter-abilities' ),
+					],
+					'force' => [
+						'type'        => 'boolean',
+						'description' => __( 'Permanently delete instead of trashing. Defaults to false.', 'filter-abilities' ),
+						'default'     => false,
+					],
+				],
+				'required'   => [ 'post_id' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'id'      => [ 'type' => 'integer' ],
+					'title'   => [ 'type' => 'string' ],
+					'action'  => [ 'type' => 'string' ],
+					'message' => [ 'type' => 'string' ],
+				],
+			],
+			'execute_callback'    => [ $this, 'execute_delete_post' ],
+			'permission_callback' => function () {
+				return current_user_can( 'delete_posts' );
+			},
+		] );
+
+		$this->register_ability( 'filter/bulk-post-actions', [
+			'label'               => __( 'Bulk Post Actions', 'filter-abilities' ),
+			'description'         => __( 'Perform bulk actions on multiple posts: publish, draft, trash, restore from trash, or permanently delete.', 'filter-abilities' ),
+			'category'            => 'filter-content',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'action' => [
+						'type'        => 'string',
+						'enum'        => [ 'publish', 'draft', 'trash', 'restore', 'delete' ],
+						'description' => __( 'Action: publish, draft, trash, restore (from trash), or delete (permanent).', 'filter-abilities' ),
+					],
+					'post_ids' => [
+						'type'        => 'array',
+						'items'       => [ 'type' => 'integer' ],
+						'description' => __( 'Array of post IDs to act on.', 'filter-abilities' ),
+					],
+				],
+				'required'   => [ 'action', 'post_ids' ],
+			],
+			'output_schema'       => [
+				'type'       => 'object',
+				'properties' => [
+					'action'   => [ 'type' => 'string' ],
+					'affected' => [ 'type' => 'integer' ],
+					'skipped'  => [ 'type' => 'integer' ],
+					'message'  => [ 'type' => 'string' ],
+				],
+			],
+			'execute_callback'    => [ $this, 'execute_bulk_post_actions' ],
+			'permission_callback' => function () {
+				return current_user_can( 'edit_posts' );
+			},
+		] );
+
 		$this->register_ability( 'filter/update-post', [
 			'label'               => __( 'Update Post', 'filter-abilities' ),
 			'description'         => __( 'Update an existing post including title, content, status, taxonomies, and ACF fields.', 'filter-abilities' ),
@@ -545,6 +652,201 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			'title'     => get_the_title( $post_id ),
 			'status'    => get_post_status( $post_id ),
 			'permalink' => get_permalink( $post_id ),
+		];
+	}
+
+	/**
+	 * Look up a post by URL path or slug and return full post data.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array<string, mixed> $input Ability input containing url.
+	 * @return array<string, mixed> Post data or error.
+	 */
+	public function execute_get_post_by_url( array $input ): array {
+		$url = sanitize_text_field( $input['url'] ?? '' );
+
+		if ( empty( $url ) ) {
+			return [ 'error' => __( 'URL is required.', 'filter-abilities' ) ];
+		}
+
+		$post_id = 0;
+
+		// Try url_to_postid first (handles full URLs and paths).
+		if ( str_starts_with( $url, '/' ) || str_starts_with( $url, 'http' ) ) {
+			// Ensure it's a full URL for url_to_postid.
+			$full_url = str_starts_with( $url, 'http' ) ? $url : home_url( $url );
+			$post_id  = url_to_postid( $full_url );
+		}
+
+		// Fallback: try as a slug across all public post types.
+		if ( ! $post_id ) {
+			$slug       = trim( $url, '/' );
+			// Strip any path segments — use only the last segment as the slug.
+			if ( str_contains( $slug, '/' ) ) {
+				$slug = basename( $slug );
+			}
+
+			$post_types = array_values( get_post_types( [ 'public' => true ] ) );
+
+			$found = get_posts( [
+				'name'           => $slug,
+				'post_type'      => $post_types,
+				'post_status'    => [ 'publish', 'draft', 'pending', 'private', 'future' ],
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+			] );
+
+			if ( ! empty( $found ) ) {
+				$post_id = $found[0];
+			}
+		}
+
+		if ( ! $post_id ) {
+			return [ 'error' => __( 'No post found for that URL or slug.', 'filter-abilities' ) ];
+		}
+
+		// Delegate to the existing get-post logic.
+		return $this->execute_get_post( [ 'post_id' => $post_id ] );
+	}
+
+	/**
+	 * Trash or permanently delete a post.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array<string, mixed> $input Ability input containing post_id and optional force flag.
+	 * @return array<string, mixed> Result or error.
+	 */
+	public function execute_delete_post( array $input ): array {
+		$post_id = absint( $input['post_id'] ?? 0 );
+		$force   = (bool) ( $input['force'] ?? false );
+		$post    = get_post( $post_id );
+
+		if ( ! $post ) {
+			return [ 'error' => __( 'Post not found.', 'filter-abilities' ) ];
+		}
+
+		if ( ! current_user_can( 'delete_post', $post_id ) ) {
+			return [ 'error' => __( 'Permission denied.', 'filter-abilities' ) ];
+		}
+
+		$title = get_the_title( $post );
+
+		if ( $force ) {
+			$result = wp_delete_post( $post_id, true );
+		} else {
+			$result = wp_trash_post( $post_id );
+		}
+
+		if ( ! $result ) {
+			return [ 'error' => __( 'Failed to delete post.', 'filter-abilities' ) ];
+		}
+
+		$action_label = $force ? 'deleted' : 'trashed';
+
+		return [
+			'id'      => $post_id,
+			'title'   => $title,
+			'action'  => $action_label,
+			'message' => sprintf(
+				/* translators: 1: post title, 2: action taken */
+				__( '"%1$s" has been %2$s.', 'filter-abilities' ),
+				$title,
+				$action_label
+			),
+		];
+	}
+
+	/**
+	 * Perform bulk actions on multiple posts.
+	 *
+	 * @since 1.3.0
+	 *
+	 * @param array<string, mixed> $input Ability input containing action and post_ids.
+	 * @return array<string, mixed> Result with affected count.
+	 */
+	public function execute_bulk_post_actions( array $input ): array {
+		$action   = sanitize_text_field( $input['action'] ?? '' );
+		$post_ids = array_map( 'absint', (array) ( $input['post_ids'] ?? [] ) );
+		$post_ids = array_filter( $post_ids );
+
+		if ( empty( $post_ids ) ) {
+			return [ 'error' => __( 'No post IDs provided.', 'filter-abilities' ) ];
+		}
+
+		$affected = 0;
+		$skipped  = 0;
+
+		foreach ( $post_ids as $post_id ) {
+			$post = get_post( $post_id );
+			if ( ! $post ) {
+				$skipped++;
+				continue;
+			}
+
+			switch ( $action ) {
+				case 'publish':
+					if ( ! current_user_can( 'publish_post', $post_id ) ) {
+						$skipped++;
+						continue 2;
+					}
+					wp_update_post( [ 'ID' => $post_id, 'post_status' => 'publish' ] );
+					$affected++;
+					break;
+
+				case 'draft':
+					if ( ! current_user_can( 'edit_post', $post_id ) ) {
+						$skipped++;
+						continue 2;
+					}
+					wp_update_post( [ 'ID' => $post_id, 'post_status' => 'draft' ] );
+					$affected++;
+					break;
+
+				case 'trash':
+					if ( ! current_user_can( 'delete_post', $post_id ) ) {
+						$skipped++;
+						continue 2;
+					}
+					wp_trash_post( $post_id );
+					$affected++;
+					break;
+
+				case 'restore':
+					if ( ! current_user_can( 'delete_post', $post_id ) ) {
+						$skipped++;
+						continue 2;
+					}
+					wp_untrash_post( $post_id );
+					$affected++;
+					break;
+
+				case 'delete':
+					if ( ! current_user_can( 'delete_post', $post_id ) ) {
+						$skipped++;
+						continue 2;
+					}
+					wp_delete_post( $post_id, true );
+					$affected++;
+					break;
+
+				default:
+					return [ 'error' => __( 'Invalid action. Use publish, draft, trash, restore, or delete.', 'filter-abilities' ) ];
+			}
+		}
+
+		return [
+			'action'   => $action,
+			'affected' => $affected,
+			'skipped'  => $skipped,
+			'message'  => sprintf(
+				/* translators: 1: number affected, 2: action, 3: number skipped */
+				__( '%1$d post(s) %2$s. %3$d skipped (not found or insufficient permissions).', 'filter-abilities' ),
+				$affected,
+				$action . ( 'trash' === $action ? 'ed' : ( 'publish' === $action ? 'ed' : 'ed' ) ),
+				$skipped
+			),
 		];
 	}
 }

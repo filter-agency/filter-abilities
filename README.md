@@ -34,8 +34,11 @@ The plugin uses a modular architecture:
 |---|---|
 | `filter/list-posts` | List posts by type with filtering, pagination, sorting, and search |
 | `filter/get-post` | Get detailed post data including content, terms, and ACF fields |
+| `filter/get-post-by-url` | Look up a post by URL path or slug and return full post data |
 | `filter/create-post` | Create a new post with optional taxonomy and ACF field assignments |
 | `filter/update-post` | Update an existing post's title, content, status, taxonomies, or ACF fields |
+| `filter/delete-post` | Trash or permanently delete a post |
+| `filter/bulk-post-actions` | Bulk publish, draft, trash, restore, or permanently delete multiple posts |
 
 #### Taxonomy Management (`filter-taxonomy`)
 | Ability | Description |
