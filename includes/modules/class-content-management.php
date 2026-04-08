@@ -304,7 +304,7 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 
 		$this->register_ability( 'filter/update-post', [
 			'label'               => __( 'Update Post', 'filter-abilities' ),
-			'description'         => __( 'Update an existing post including title, content, status, taxonomies, and ACF fields.', 'filter-abilities' ),
+			'description'         => __( 'Update an existing post including title, content, status, date, taxonomies, and ACF fields.', 'filter-abilities' ),
 			'category'            => 'filter-content',
 			'input_schema'        => [
 				'type'       => 'object',
@@ -328,6 +328,10 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 					'excerpt' => [
 						'type'        => 'string',
 						'description' => __( 'New post excerpt.', 'filter-abilities' ),
+					],
+					'date' => [
+						'type'        => 'string',
+						'description' => __( 'Post date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format.', 'filter-abilities' ),
 					],
 					'acf_fields' => [
 						'type'        => 'object',
@@ -619,6 +623,19 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 		}
 		if ( isset( $input['excerpt'] ) ) {
 			$post_data['post_excerpt'] = sanitize_text_field( $input['excerpt'] );
+		}
+		if ( isset( $input['date'] ) ) {
+			$date = sanitize_text_field( $input['date'] );
+			// Accept YYYY-MM-DD (append midnight) or full datetime.
+			if ( preg_match( '/^\d{4}-\d{2}-\d{2}$/', $date ) ) {
+				$date .= ' 00:00:00';
+			}
+			if ( ! preg_match( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $date ) ) {
+				return [ 'error' => __( 'Invalid date format. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS.', 'filter-abilities' ) ];
+			}
+			$post_data['post_date']     = $date;
+			$post_data['post_date_gmt'] = get_gmt_from_date( $date );
+			$post_data['edit_date']     = true;
 		}
 
 		$result = wp_update_post( $post_data, true );
