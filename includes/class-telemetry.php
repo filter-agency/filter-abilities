@@ -93,7 +93,39 @@ class Filter_Abilities_Telemetry {
 		// with our minimal one (~500 bytes).
 		Config::get_container()->bind( Data_Provider::class, Filter_Abilities_Data_Provider::class );
 
+		// Strip the admin's name + email from telemetry. StellarWP collects
+		// these via register_user() on opt-in and re-attaches them on every
+		// send as opt_in_user. We promised users anonymous data — keep it so.
+		add_filter( 'stellarwp/telemetry/' . self::HOOK_PREFIX . 'register_site_user_details', '__return_empty_array' );
+		add_filter( 'option_stellarwp_telemetry_user_info', '__return_empty_array' );
+		add_filter( 'default_option_stellarwp_telemetry_user_info', '__return_empty_array' );
+
 		add_action( 'admin_notices', [ self::class, 'maybe_render_optin_modal' ] );
+	}
+
+	/**
+	 * Fire-and-forget event POST to the receiver. Skips if the site hasn't
+	 * registered (no token) — we only track events for opted-in sites.
+	 */
+	public static function send_event( string $event_type ): void {
+		$option = (array) get_option( 'stellarwp_telemetry', [] );
+		$token  = $option['token'] ?? '';
+		if ( ! is_string( $token ) || '' === $token ) {
+			return;
+		}
+
+		$endpoint = ( defined( 'FILTER_ABILITIES_TELEMETRY_URL' ) ? rtrim( (string) FILTER_ABILITIES_TELEMETRY_URL, '/' ) : self::DEFAULT_URL ) . '/event';
+
+		wp_remote_post( $endpoint, [
+			'timeout'  => 5,
+			'blocking' => false,
+			'body'     => [
+				'token'          => $token,
+				'event_type'     => $event_type,
+				'plugin_slug'    => self::STELLAR_SLUG,
+				'plugin_version' => defined( 'FILTER_ABILITIES_VERSION' ) ? FILTER_ABILITIES_VERSION : '',
+			],
+		] );
 	}
 
 	/**

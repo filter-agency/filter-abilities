@@ -32,6 +32,13 @@ require_once FILTER_ABILITIES_PATH . 'includes/class-telemetry-modals.php';
 add_action( 'plugins_loaded', [ 'Filter_Abilities_Telemetry', 'bootstrap' ] );
 add_action( 'plugins_loaded', [ 'Filter_Abilities_Telemetry_Modals', 'bootstrap' ] );
 
+register_activation_hook( __FILE__, function (): void {
+	Filter_Abilities_Telemetry::send_event( 'activated' );
+} );
+register_deactivation_hook( __FILE__, function (): void {
+	Filter_Abilities_Telemetry::send_event( 'deactivated' );
+} );
+
 // Auto-update from GitHub releases.
 if ( file_exists( FILTER_ABILITIES_PATH . 'vendor/yahnis-elsts/plugin-update-checker/plugin-update-checker.php' ) ) {
 	require_once FILTER_ABILITIES_PATH . 'vendor/yahnis-elsts/plugin-update-checker/plugin-update-checker.php';

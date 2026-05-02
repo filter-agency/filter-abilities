@@ -2,8 +2,8 @@
 
 ## 1.5.0
 
-### Changed
-- Filter-branded the StellarWP opt-in and exit-interview modals: replaced the Liquid Web logo with the Filter logo, removed all Liquid Web / Nexcess references, updated headings/intro copy, and pointed the permissions / terms / privacy links to filter.agency.
+### Added
+- Anonymous opt-in telemetry via the StellarWP Telemetry library, sending only WordPress version, PHP version, locale, multisite flag, and active Filter plugins to https://telemetry.filter.agency.
 
 ## 1.4.3
 
