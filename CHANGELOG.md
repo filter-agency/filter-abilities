@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.0
+
+### Changed
+- Filter-branded the StellarWP opt-in and exit-interview modals: replaced the Liquid Web logo with the Filter logo, removed all Liquid Web / Nexcess references, updated headings/intro copy, and pointed the permissions / terms / privacy links to filter.agency.
+
 ## 1.4.3
 
 ### Changed
