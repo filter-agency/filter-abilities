@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+
+### Fixed
+- Fatal `TypeError` on plugins_loaded when initialising telemetry: di52's `Container` does not formally implement StellarWP's `ContainerInterface`. Added a small adapter so the container satisfies the contract.
+
 ## 1.4.0
 
 ### Added

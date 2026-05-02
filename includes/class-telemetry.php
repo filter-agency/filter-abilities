@@ -14,9 +14,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+use Filter\Vendor\StellarWP\ContainerContract\ContainerInterface;
 use Filter\Vendor\StellarWP\Telemetry\Config;
 use Filter\Vendor\StellarWP\Telemetry\Core as Telemetry;
 use Filter\Vendor\lucatume\DI52\Container;
+
+/**
+ * Adapter so di52's Container satisfies StellarWP's ContainerInterface contract.
+ * di52 already provides every required method; we just need the formal interface.
+ */
+final class Filter_Abilities_Telemetry_Container extends Container implements ContainerInterface {
+}
 
 class Filter_Abilities_Telemetry {
 
@@ -29,7 +37,7 @@ class Filter_Abilities_Telemetry {
 			return;
 		}
 
-		Config::set_container( new Container() );
+		Config::set_container( new Filter_Abilities_Telemetry_Container() );
 		Config::set_server_url( self::endpoint_url() );
 		Config::set_hook_prefix( self::HOOK_PREFIX );
 		Config::set_stellar_slug( self::STELLAR_SLUG );
