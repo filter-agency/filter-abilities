@@ -177,6 +177,10 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 						'type'        => 'object',
 						'description' => __( 'Taxonomy slug to array of term IDs. E.g. {"category": [1, 2]}.', 'filter-abilities' ),
 					],
+					'author' => [
+						'type'        => 'integer',
+						'description' => __( 'User ID to assign as post author. Requires edit_others_posts capability. Defaults to current user.', 'filter-abilities' ),
+					],
 				],
 				'required'   => [ 'title' ],
 			],
@@ -340,6 +344,10 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 					'taxonomy_terms' => [
 						'type'        => 'object',
 						'description' => __( 'Taxonomy slug to array of term IDs.', 'filter-abilities' ),
+					],
+					'author' => [
+						'type'        => 'integer',
+						'description' => __( 'User ID to reassign as post author. Requires edit_others_posts capability.', 'filter-abilities' ),
 					],
 				],
 				'required'   => [ 'post_id' ],
@@ -548,6 +556,17 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			$post_data['post_excerpt'] = sanitize_text_field( $input['excerpt'] );
 		}
 
+		if ( isset( $input['author'] ) ) {
+			$author_id = absint( $input['author'] );
+			if ( ! get_userdata( $author_id ) ) {
+				return [ 'error' => sprintf( __( 'User ID %d does not exist.', 'filter-abilities' ), $author_id ) ];
+			}
+			if ( ! current_user_can( $post_type_obj->cap->edit_others_posts ) ) {
+				return [ 'error' => __( 'You do not have permission to assign posts to other users.', 'filter-abilities' ) ];
+			}
+			$post_data['post_author'] = $author_id;
+		}
+
 		$post_id = wp_insert_post( $post_data, true );
 
 		if ( is_wp_error( $post_id ) ) {
@@ -636,6 +655,17 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 			$post_data['post_date']     = $date;
 			$post_data['post_date_gmt'] = get_gmt_from_date( $date );
 			$post_data['edit_date']     = true;
+		}
+		if ( isset( $input['author'] ) ) {
+			$author_id = absint( $input['author'] );
+			if ( ! get_userdata( $author_id ) ) {
+				return [ 'error' => sprintf( __( 'User ID %d does not exist.', 'filter-abilities' ), $author_id ) ];
+			}
+			$post_type_obj = get_post_type_object( $post->post_type );
+			if ( ! $post_type_obj || ! current_user_can( $post_type_obj->cap->edit_others_posts ) ) {
+				return [ 'error' => __( 'You do not have permission to reassign post authorship.', 'filter-abilities' ) ];
+			}
+			$post_data['post_author'] = $author_id;
 		}
 
 		$result = wp_update_post( $post_data, true );

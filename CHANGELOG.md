@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.3
+
+### Added
+- `author` parameter on `filter/create-post` and `filter/update-post` — pass a user ID to set or reassign post authorship. Requires `edit_others_posts` capability.
+
+## 1.3.2
+
+### Added
+- `date` parameter on `filter/update-post` — set post date in `YYYY-MM-DD` or `YYYY-MM-DD HH:MM:SS` format.
+
 ## 1.3.1
 
 ### Added
