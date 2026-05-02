@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.5.1
+
+### Fixed
+- Plugin author metadata: now reads "Filter" linking to https://filter.agency.
+
 ## 1.5.0
 
 ### Added

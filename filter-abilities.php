@@ -3,9 +3,9 @@
  * Plugin Name: Filter Abilities
  * Plugin URI: https://github.com/filter-agency/filter-abilities
  * Description: Exposes WordPress functionality as Abilities API abilities for AI agent interaction via MCP. Auto-detects compatible plugins (ACF, Yoast, Gravity Forms, PersonalizeWP, Filter AI, WooCommerce Teams, Redirection) and registers relevant abilities.
- * Version: 1.5.0
- * Author: Filter Digital
- * Author URI: https://filterdigital.com
+ * Version: 1.5.1
+ * Author: Filter
+ * Author URI: https://filter.agency
  * License: GPL-2.0-or-later
  * Requires at least: 6.9
  * Requires PHP: 7.4
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'FILTER_ABILITIES_VERSION', '1.5.0' );
+define( 'FILTER_ABILITIES_VERSION', '1.5.1' );
 define( 'FILTER_ABILITIES_PATH', plugin_dir_path( __FILE__ ) );
 define( 'FILTER_ABILITIES_FILE', __FILE__ );
 
