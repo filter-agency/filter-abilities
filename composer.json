@@ -5,6 +5,37 @@
 	"license": "GPL-2.0-or-later",
 	"require": {
 		"php": ">=7.4",
-		"yahnis-elsts/plugin-update-checker": "^5.6"
+		"yahnis-elsts/plugin-update-checker": "^5.6",
+		"stellarwp/telemetry": "^2.4",
+		"stellarwp/container-contract": "^1.0",
+		"lucatume/di52": "^3.0"
+	},
+	"require-dev": {
+		"brianhenryie/strauss": "^0.21"
+	},
+	"scripts": {
+		"strauss": [
+			"vendor/bin/strauss"
+		],
+		"post-install-cmd": [
+			"@strauss"
+		],
+		"post-update-cmd": [
+			"@strauss"
+		]
+	},
+	"extra": {
+		"strauss": {
+			"target_directory": "vendor-prefixed",
+			"namespace_prefix": "Filter\\Vendor\\",
+			"classmap_prefix": "Filter_Vendor_",
+			"constant_prefix": "FILTER_VENDOR_",
+			"packages": [
+				"stellarwp/telemetry",
+				"stellarwp/container-contract",
+				"lucatume/di52"
+			],
+			"delete_vendor_packages": true
+		}
 	}
 }

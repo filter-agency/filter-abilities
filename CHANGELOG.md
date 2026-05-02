@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.0
+
+### Added
+- **Anonymous opt-in telemetry** via the StellarWP Telemetry library. Sends WordPress version, PHP version, locale, multisite status, plugin version, and which Filter plugins are active to `https://telemetry.filter.agency`. Disabled by default — admins are prompted via the StellarWP opt-in modal on first activation.
+- Server URL can be overridden via the `FILTER_ABILITIES_TELEMETRY_URL` constant in `wp-config.php` for local testing.
+
+### Changed
+- StellarWP Telemetry, lucatume/di52, and stellarwp/container-contract dependencies are bundled under the `Filter\Vendor\` namespace via Strauss to prevent collisions with other Filter plugins on the same site.
+
 ## 1.3.3
 
 ### Added
