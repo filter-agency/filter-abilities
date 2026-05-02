@@ -43,6 +43,20 @@ class Filter_Abilities_Telemetry {
 		Config::set_stellar_slug( self::STELLAR_SLUG );
 
 		Telemetry::instance()->init( FILTER_ABILITIES_FILE );
+
+		add_action( 'admin_notices', [ self::class, 'maybe_render_optin_modal' ] );
+	}
+
+	/**
+	 * Fires the StellarWP optin action so the library can render the modal if
+	 * its own should_render() check passes (i.e. the site hasn't already opted
+	 * in or dismissed it).
+	 */
+	public static function maybe_render_optin_modal(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		do_action( 'stellarwp/telemetry/optin', self::STELLAR_SLUG );
 	}
 
 	private static function endpoint_url(): string {

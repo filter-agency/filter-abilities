@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2
+
+### Fixed
+- StellarWP telemetry opt-in modal not appearing. The library exposes a `stellarwp/telemetry/optin` action but doesn't decide where to fire it; we now hook `admin_notices` to trigger the modal on admin pages for users with `manage_options`.
+
 ## 1.4.1
 
 ### Fixed
