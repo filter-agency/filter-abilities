@@ -16,6 +16,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 use Filter\Vendor\StellarWP\ContainerContract\ContainerInterface;
 use Filter\Vendor\StellarWP\Telemetry\Config;
+use Filter\Vendor\StellarWP\Telemetry\Contracts\Data_Provider;
 use Filter\Vendor\StellarWP\Telemetry\Core as Telemetry;
 use Filter\Vendor\lucatume\DI52\Container;
 
@@ -24,6 +25,50 @@ use Filter\Vendor\lucatume\DI52\Container;
  * di52 already provides every required method; we just need the formal interface.
  */
 final class Filter_Abilities_Telemetry_Container extends Container implements ContainerInterface {
+}
+
+/**
+ * Minimal data provider — just the fields we actually use for the receiver UI,
+ * instead of the ~60KB WP_Debug_Data dump that StellarWP sends by default.
+ */
+final class Filter_Abilities_Data_Provider implements Data_Provider {
+
+	public function get_data(): array {
+		global $wp_version;
+
+		return [
+			'wp_version'     => (string) $wp_version,
+			'php_version'    => PHP_VERSION,
+			'site_url'       => home_url(),
+			'locale'         => get_locale(),
+			'multisite'      => is_multisite(),
+			'filter_plugins' => self::filter_plugin_versions(),
+		];
+	}
+
+	/**
+	 * @return array<string, string> Map of slug => version for active Filter plugins.
+	 */
+	private static function filter_plugin_versions(): array {
+		$known = [ 'filter-abilities', 'filter-ai', 'personalize-wp' ];
+
+		if ( ! function_exists( 'get_plugins' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/plugin.php';
+		}
+
+		$active = (array) get_option( 'active_plugins', [] );
+		$all    = get_plugins();
+		$out    = [];
+
+		foreach ( $all as $file => $data ) {
+			$slug = dirname( $file );
+			if ( in_array( $slug, $known, true ) && in_array( $file, $active, true ) ) {
+				$out[ $slug ] = (string) ( $data['Version'] ?? '' );
+			}
+		}
+
+		return $out;
+	}
 }
 
 class Filter_Abilities_Telemetry {
@@ -43,6 +88,10 @@ class Filter_Abilities_Telemetry {
 		Config::set_stellar_slug( self::STELLAR_SLUG );
 
 		Telemetry::instance()->init( FILTER_ABILITIES_FILE );
+
+		// Replace StellarWP's default Debug_Data provider (~60KB per ping)
+		// with our minimal one (~500 bytes).
+		Config::get_container()->bind( Data_Provider::class, Filter_Abilities_Data_Provider::class );
 
 		add_action( 'admin_notices', [ self::class, 'maybe_render_optin_modal' ] );
 	}

@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.3
+
+### Changed
+- Replaced StellarWP's default `Debug_Data` provider (≈60KB per ping with full plugin/theme/server config) with a minimal Filter-specific provider (≈500 bytes). Now sends only: WP version, PHP version, locale, multisite flag, site URL, and a map of active Filter plugin slugs → versions.
+
 ## 1.4.2
 
 ### Fixed
