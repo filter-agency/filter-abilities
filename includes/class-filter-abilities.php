@@ -64,6 +64,12 @@ class Filter_Abilities {
 				'label' => 'Media Management',
 				'check' => null, // Always active.
 			],
+			'migration' => [
+				'file'  => 'class-migration.php',
+				'class' => 'Filter_Abilities_Migration',
+				'label' => 'Migration Tools',
+				'check' => null, // Always active.
+			],
 			'acf-fields' => [
 				'file'  => 'class-acf-fields.php',
 				'class' => 'Filter_Abilities_ACF_Fields',

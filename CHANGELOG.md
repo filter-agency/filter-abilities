@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.6.0
+
+### Added
+- **`filter/upload-media`** — sideload up to 50 remote URLs into the media library in one call (matches `filter/list-media`'s per-page cap; raise via the `filter_abilities_upload_media_max_batch` filter). Supports per-item `title`, `alt_text`, `caption`, `description`, `post_parent`, `date`, `set_as_featured_image`, and an `original_id` echo field for ID-mapping during cross-site migrations. Calls `set_time_limit(0)` and raises the image memory limit so large batches have a chance to complete. SSRF-guarded against loopback, link-local, and RFC1918 sources.
+- **`filter/rewrite-content`** — new Migration Tools module. Rewrites media references in post content, Gutenberg block attributes (`core/image`, `core/gallery`, `core/cover`, `core/media-text`, `core/video`, `core/audio`, `core/file`), `wp-image-{ID}` classes, `[gallery]` shortcodes, featured-image postmeta, and ACF image/gallery/file fields, using a caller-supplied `media_map`. Defaults to `dry_run: true`; provide `dry_run: false` to apply.
+- `filter/list-media` output extended with `caption`, `description`, `post_parent`, and `size_urls` (a `{size_name: url}` map covering all intermediate sizes, including `full`). The `size_urls` values are the input expected by `filter/rewrite-content`'s `media_map[].old_size_urls`.
+- `filter_abilities_is_safe_external_url` filter — lets advanced users whitelist specific internal hostnames for `filter/upload-media`. Use sparingly.
+- `filter_abilities_rewrite_block_attrs` filter — lets consumers register handlers for custom block types in `filter/rewrite-content`.
+- `tests/test-media-abilities.php` — drop-in functional test runner covering all of the above (extended `list-media`, `upload-media` happy-path / batch / SSRF / batch cap / featured-image, `rewrite-content` dry-run / applied / mutual-exclusion validation).
+- `docs/MIGRATION.md` — end-to-end cross-site migration guide covering the full media + post + reference-rewrite workflow, with worked examples, recovery patterns, recipes, and extension-point documentation.
+
 ## 1.5.1
 
 ### Fixed
