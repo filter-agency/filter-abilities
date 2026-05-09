@@ -49,7 +49,15 @@ The plugin uses a modular architecture:
 #### Media Management (`filter-media`)
 | Ability | Description |
 |---|---|
-| `filter/list-media` | List media library items with MIME type filtering and missing alt-text detection |
+| `filter/list-media` | List media library items with MIME type filtering and missing alt-text detection. Per-item output includes caption, description, post_parent, and a `size_urls` map of every intermediate-size URL — used by `filter/rewrite-content` to faithfully remap variants in post bodies during a migration |
+| `filter/upload-media` | Sideload up to 50 remote URLs into the media library in one call (matches `filter/list-media`'s per-page cap; raise further via the `filter_abilities_upload_media_max_batch` filter). Each item supports title/alt_text/caption/description, optional `post_parent`, optional `set_as_featured_image`, and an `original_id` echo field for ID-mapping during cross-site migrations. SSRF-guarded against loopback/private-network sources |
+
+#### Migration Tools (`filter-migration`)
+| Ability | Description |
+|---|---|
+| `filter/rewrite-content` | Rewrite media references in post content, Gutenberg block attributes (`core/image`, `core/gallery`, `core/cover`, `core/media-text`, `core/video`, `core/audio`, `core/file`), `wp-image-{ID}` classes, `[gallery]` shortcodes, featured-image postmeta, and ACF image/gallery/file fields, using a caller-supplied `media_map`. Defaults to `dry_run: true` for safety. Designed to follow `filter/upload-media` in a cross-site migration pipeline |
+
+> **Migrating an entire site?** See [docs/MIGRATION.md](docs/MIGRATION.md) for the full workflow — `list-media` → `upload-media` → `list-posts` → `get-post` → `create-post` → `rewrite-content` — with worked examples, recovery patterns, and extension points.
 
 #### Site Health (`filter-site`)
 | Ability | Description |
