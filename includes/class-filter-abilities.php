@@ -70,6 +70,12 @@ class Filter_Abilities {
 				'label' => 'Migration Tools',
 				'check' => null, // Always active.
 			],
+			'block-editing' => [
+				'file'  => 'class-block-editing.php',
+				'class' => 'Filter_Abilities_Block_Editing',
+				'label' => 'Block Editing',
+				'check' => null, // Always active — uses only WordPress core block functions.
+			],
 			'acf-fields' => [
 				'file'  => 'class-acf-fields.php',
 				'class' => 'Filter_Abilities_ACF_Fields',

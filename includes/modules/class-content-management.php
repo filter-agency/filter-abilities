@@ -308,7 +308,7 @@ class Filter_Abilities_Content_Management extends Filter_Abilities_Module_Base {
 
 		$this->register_ability( 'filter/update-post', [
 			'label'               => __( 'Update Post', 'filter-abilities' ),
-			'description'         => __( 'Update an existing post including title, content, status, date, taxonomies, and ACF fields.', 'filter-abilities' ),
+			'description'         => __( 'Update an existing post including title, content, status, date, taxonomies, and ACF fields. For editing existing Gutenberg block content, prefer the block abilities (get-post-blocks then update-block / mutate-block / batch-edit-blocks), which preserve block markup. Use this ability\'s "content" field only for non-block content or a deliberate full-content replacement.', 'filter-abilities' ),
 			'category'            => 'filter-content',
 			'input_schema'        => [
 				'type'       => 'object',
