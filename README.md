@@ -81,7 +81,19 @@ Enhances the Content Management abilities with ACF field data (read/write). No s
 | Ability | Description |
 |---|---|
 | `filter/list-forms` | List all forms with field definitions and entry counts |
+| `filter/get-form` | Get a single form in full detail: fields, confirmations, notifications, settings; optional `include_feeds` to bundle add-on feeds |
 | `filter/get-form-entries` | Get form entries with date filtering and pagination |
+| `filter/manage-form` | Create / update / delete (trash by default, `force: true` for permanent + entry loss) / duplicate / set-active a form. Supports `dry_run` |
+| `filter/manage-form-field` | Surgically add / update / delete / move a single field (read-mutate-save, never rewrite). Validated against a supported field-type allow-list. Supports `dry_run` |
+| `filter/manage-form-confirmation` | Add / update / delete / set-default on a form's confirmations, with full `conditionalLogic` support. Supports `dry_run` |
+| `filter/manage-form-notification` | Add / update / delete / set-active on a form's notifications. Same uniqid-keyed shape as confirmations; supports `conditionalLogic` for selective firing. Supports `dry_run` |
+| `filter/list-form-feeds` | List add-on feeds (Mailchimp, HubSpot, etc.) for a form. `is_active: null` (default) returns all feeds including inactive — use this to audit retired feeds |
+| `filter/manage-form-feed` | Create / update / delete / set-active an add-on feed. Add-on `meta` shape is opaque — introspect via `list-form-feeds` first. Supports `dry_run` |
+| `filter/validate-conditional-logic` | Lint a `conditionalLogic` object against a form before writing it. Checks structure, operators, and that every `fieldId` references a real field — including composite sub-inputs like `"1.3"`. GF otherwise silently coerces these errors away |
+| `filter/list-mailchimp-audiences` | (Mailchimp add-on only) List every Mailchimp audience (list). Returns the `id` to use as `mailchimpList` in a feed |
+| `filter/list-mailchimp-tags` | (Mailchimp add-on only) List static tags on an audience. Tag names — not ids — populate a feed's `tags` |
+| `filter/list-mailchimp-merge-fields` | (Mailchimp add-on only) List merge fields on an audience (`EMAIL`, `FNAME`, `LNAME`, plus custom). The `tag` values are the `mappedFields` keys |
+| `filter/list-mailchimp-groups` | (Mailchimp add-on only) List interest groupings + interests on an audience. Interest ids populate a feed's `groups` |
 
 #### Redirection Management (`filter-redirection`) — requires [Redirection](https://redirection.me/)
 | Ability | Description |

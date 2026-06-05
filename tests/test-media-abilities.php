@@ -77,6 +77,27 @@ function fa_run_ability( string $name, array $params = [] ): array {
 	return is_array( $result ) ? $result : [ 'raw' => $result ];
 }
 
+function fa_media_is_local_test_host( string $host ): bool {
+	$has_suffix = static function ( string $value, string $suffix ): bool {
+		return '' !== $suffix && substr( $value, -strlen( $suffix ) ) === $suffix;
+	};
+
+	return in_array( $host, [ 'localhost', '127.0.0.1', '::1' ], true )
+		|| $has_suffix( $host, '.test' )
+		|| $has_suffix( $host, '.local' )
+		|| $has_suffix( $host, '.localhost' );
+}
+
+function fa_media_is_same_local_test_host( string $url ): bool {
+	$url_host  = wp_parse_url( $url, PHP_URL_HOST );
+	$home_host = wp_parse_url( home_url(), PHP_URL_HOST );
+
+	return is_string( $url_host )
+		&& is_string( $home_host )
+		&& strtolower( $url_host ) === strtolower( $home_host )
+		&& fa_media_is_local_test_host( strtolower( $home_host ) );
+}
+
 /**
  * Generate a tiny PNG fixture and write it to a path under uploads.
  * Returns the absolute path.
@@ -96,6 +117,8 @@ function fa_make_test_png( string $filename, int $width = 64, int $height = 48 )
 	imagestring( $im, 5, 4, 4, 'TEST', $fg );
 	imagepng( $im, $path );
 	imagedestroy( $im );
+
+	FA_Media_Test_Cleanup::$files[] = $path;
 
 	return $path;
 }
@@ -135,6 +158,22 @@ add_filter( 'filter_abilities_is_safe_external_url', static function ( $is_safe,
 	}
 	return $is_safe;
 }, 10, 2 );
+
+// Local dev certificates are often self-signed; only relax SSL for this
+// site's own .test/.local fixture URLs inside the test process.
+$fa_media_local_ssl_filter = static function ( $verify, $url = '' ) {
+	if ( is_string( $url ) && false !== strpos( $url, 'fa-test-fixtures/' ) && fa_media_is_same_local_test_host( $url ) ) {
+		return false;
+	}
+
+	return $verify;
+};
+add_filter( 'https_ssl_verify', $fa_media_local_ssl_filter, 10, 2 );
+add_filter( 'https_local_ssl_verify', $fa_media_local_ssl_filter, 10, 2 );
+
+if ( has_filter( 'wp_generate_attachment_metadata', 'filter_ai_generate_alt_text_on_upload' ) ) {
+	remove_filter( 'wp_generate_attachment_metadata', 'filter_ai_generate_alt_text_on_upload', 10 );
+}
 
 // ─── Pre-flight ─────────────────────────────────────────────────────────────
 

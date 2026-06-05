@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.8.0
+
+### Added
+- Expands Gravity Forms support from listing/entries into full form, field, confirmation, notification, and add-on feed management.
+- Adds `filter/validate-conditional-logic` so agents can lint Gravity Forms conditional logic before writing it.
+- Adds Mailchimp picker abilities for audiences, tags, merge fields, and groups.
+- Adds a drop-in functional test runner for the new form abilities.
+
+### Changed
+- Improves feed field mapping, duplicate-label entry output, form capability checks, and error reporting for invalid Gravity Forms writes.
+- Hardens local media tests so `.test` fixture downloads and Filter AI upload side effects do not mask Filter Abilities results.
+
+## 1.7.0
+
+### Added
+- **Block Editing module** (`filter-blocks`) — surgical, block-aware Gutenberg editing over MCP. Wraps the vendored GravityKit Block API engine so AI agents can read a parsed block tree with stable refs and submit targeted changes to a single block (instead of regenerating an entire `post_content` string, which routinely drops `<!-- wp:... -->` delimiters and corrupts the post). Abilities: `filter/get-post-blocks`, `filter/list-block-types`, `filter/update-block`, `filter/insert-blocks`, `filter/delete-blocks`, `filter/mutate-block`, `filter/batch-edit-blocks`. See `docs/BLOCK-EDITING.md`.
+
 ## 1.6.0
 
 ### Added
