@@ -2,80 +2,15 @@
 
 ## 1.8.0
 
-### Added — Form Management module expansion
+### Added
+- Expands Gravity Forms support from listing/entries into full form, field, confirmation, notification, and add-on feed management.
+- Adds `filter/validate-conditional-logic` so agents can lint Gravity Forms conditional logic before writing it.
+- Adds Mailchimp picker abilities for audiences, tags, merge fields, and groups.
+- Adds a drop-in functional test runner for the new form abilities.
 
-Twelve new abilities extend `filter-forms` from read-only summaries into full Gravity Forms control, with first-class Mailchimp introspection and a conditional-logic linter so an MCP session can compose feeds and gated confirmations without leaving the conversation. Designed so a single session can audit a form estate, consolidate forms, manage notifications, and switch over add-on feeds without admin UI or WP-CLI access. Every write ability supports `dry_run` to preview the computed result without persisting.
-
-- **`filter/get-form`** — detailed counterpart to `filter/list-forms`. Returns the complete form object: `fields[]`, `confirmations{}`, `notifications{}`, `settings`, `is_active`, `is_trash`, `date_created`. Optional `include_feeds: true` adds the form's add-on feeds (Mailchimp, HubSpot, etc.), explicitly passing `is_active=null` to `GFAPI::get_feeds()` so inactive feeds are included (the GFAPI default of `true` would otherwise hide them).
-- **`filter/manage-form`** — `create | update | delete | duplicate | set-active`. Defaults to trash on delete (reversible, entries preserved); `force: true` permanently deletes the form **and all its entries** (irreversible). `duplicate` uses the `GFAPI::duplicate_form()` wrapper; add-on feeds do not duplicate (separate table, keyed by `form_id`).
-- **`filter/manage-form-field`** — `add | update | delete | move`. Targeted, single-field edits in the spirit of the v1.7 block-editing module: read form, mutate the `fields` array, save — never rewrite the whole form (which corrupts it). Validates `type` against a supported allow-list before calling `GF_Fields::create()`, because the GF factory silently returns a generic `GF_Field` on an unknown type. Allocates new ids via `GFFormsModel::get_next_field_id()` and updates `$form['nextFieldId']`. Supported types: `text`, `email`, `name`, `textarea`, `select`, `checkbox`, `radio`, `website`, `phone`, `hidden`, `consent`, `html`, `section`, `date`, `time`, `fileupload`.
-- **`filter/manage-form-confirmation`** — `add | update | delete | set-default` on `$form['confirmations']`. Supports per-rule `conditionalLogic`, enabling one-form-many-confirmations patterns (e.g. a single Guide Download form gated by a hidden `guide` field, dispatching different download links per topic).
-- **`filter/manage-form-notification`** — `add | update | delete | set-active` on `$form['notifications']`. Same per-uniqid keying as confirmations. Supports the full notification shape (`service`, `event`, `to`, `toType`, `bcc`, `fromName`, `from`, `replyTo`, `subject`, `message`, `disableAutoformat`, `enableAttachments`, `conditionalLogic`, `routing`) with sensible defaults applied on `add` (`service: "wordpress"`, `event: "form_submission"`, `isActive: true`) so a minimal payload still produces a working notification. `set-active` toggles `isActive` — the retire mechanism for notifications.
-- **`filter/list-form-feeds`** — feed introspection. Wraps `GFAPI::get_feeds()` with an explicit `is_active` input (defaults to `null` / all feeds). The introspection tool for capturing add-on `meta` shape before writing new feeds.
-- **`filter/manage-form-feed`** — `create | update | delete | set-active`. `set-active` uses `GFAPI::update_feed_property( $feed_id, 'is_active', 0|1 )` (there is no `GFAPI::update_feed_active()` static method). Validates that the form exists and the target add-on slug is registered before `add_feed`.
-
-### Added — Conditional-logic validator
-
-- **`filter/validate-conditional-logic`** — read-only linter for `conditionalLogic` objects against a form. Checks structure (`actionType` in `show|hide`, `logicType` in `all|any`, non-empty `rules[]`), each rule's shape (`fieldId` + `operator` + `value`), that operators are in the canonical list (`is, isnot, <>, in, not in, >, <, >=, <=, contains, starts_with, ends_with, like`), and — critically — that every `fieldId` references a field that actually exists on the form (composite sub-input ids like `"1.3"` are resolved to their parent). Returns `{ valid, errors: [{ path, message }], operators_reference }`. Designed for AI agents to lint logic before writing.
-
-### Changed — conditional logic is now validated on every write path
-
-Direct `conditionalLogic` pass-through (the documented v1 approach — no DSL or builder) now runs through the same validator on every write that accepts a logic object: `manage-form-field` add/update, `manage-form-confirmation` add/update, `manage-form-notification` add/update, and `manage-form-feed` create/update (which checks `meta.feed_condition_conditional_logic_object.conditionalLogic`). Gravity Forms otherwise silently coerces invalid `actionType` to `"show"`, invalid operators to `"is"`, and accepts non-existent `fieldId` references — producing logic that never matches and gives no clue why. With this change those problems return as `[ 'error' => '…', 'errors' => [{ path, message }] ]` instead, with paths like `confirmation.conditionalLogic.rules[0].fieldId`.
-
-Indexed-array properties (`conditionalLogic`, `choices`, `inputs`) on `manage-form-field` updates are now REPLACED wholesale instead of merged by index. The previous `array_replace_recursive` behaviour leaked stale entries when a patch shortened the array — e.g. patching `rules: [A, B]` over an existing `rules: [X, Y, Z]` would produce `[A, B, Z]`. Pass the complete intended value on update.
-
-### Security
-
-- **`manage-form update` capability bypass closed.** The previous `form_patch` guard only blocked `fields`, `confirmations`, `notifications`. It did not block `is_trash` or `is_active`, which meant a user with `gravityforms_edit_forms` (but not `gravityforms_delete_forms`) could trash a form by passing `form_patch: { is_trash: 1 }` — bypassing the deliberate capability separation between the `update` and `delete` operations. The patch guard now rejects `is_trash`, `is_active`, `id`, `nextFieldId`, and `date_created` with operation-specific guidance.
-
-### Fixed — silent failures surfaced
-
-- **`manage-form delete` (trash) and `set-active` silently reported success on DB failure.** `GFAPI::update_forms_property` returns `WP_Error` for validation errors but falls through to `$wpdb->query()` which returns `int|false`. The previous code only tested `is_wp_error()`, so a `false` (DB-layer failure) was reported as a successful trash/toggle. Both call sites now also test `false === $result`.
-- **`manage-form-feed` rejected non-scalar `mappedFields` values.** Previously a payload like `mappedFields: { EMAIL: { complex: object } }` was flattened to `mappedFields_EMAIL: {complex: object}` and stored. The add-on then tried to treat the object as a field id at submission time, silently failing. The flattener now returns a clear `invalid_field_map_value` error before the bad data ever reaches storage.
-- **Individual `mappedFields_*` entries can now actually be cleared.** Previously `mappedFields: { FNAME: null }` left `mappedFields_FNAME: null` in feed meta, which the add-on read as field id `null`. Null values in the flattened patch are now stripped from the merged meta before persistence.
-- **`mappedFields: {}` and `mappedFields: null` now mean "clear all mappings".** Previously the empty-object form was a silent no-op — the `is_assoc` check counted string keys, got zero, and skipped the flatten. Both forms now emit a clear-sentinel that removes every `mappedFields_*` key from existing meta.
-- **`mailchimp_direct_get` returned `[]` on a 200 with malformed JSON.** A WAF interstitial, gzip middleware glitch, or truncated body all looked identical to "no results" to the caller. The helper now returns `WP_Error( mailchimp_decode_failed )` or `WP_Error( mailchimp_empty_body )` instead.
-- **`get-form-entries` (pre-1.8.0 ability) lost values when two fields shared a label.** Field values were keyed by label, so two `Email` fields collided. Duplicate labels are now disambiguated with the field id (`"Email (id 5)"`).
-- **Field self-referencing `conditionalLogic` no longer wrongly rejected on add.** The validator now sees a synthetic form snapshot that includes the to-be-added field, so a field can reference its own id in its visibility rules.
-- **`manage-form-field` update no longer lets `formId` be corrupted via patch.** `merge_field_properties` now locks `formId` to the parent form's id after merge, regardless of what the patch contained.
-- **`list-mailchimp-groups` capped at 25 interest categories** with a `truncated: true` flag in the response. The previous N+1 HTTP fan-out (one request per category) could time out PHP on accounts with many groupings.
-
-### Changed — minor
-
-- **`manage-form-field` move** now reports `moved: false` with `from_index` and `to_index` when the resolved destination matches the current index, and skips the DB write. Previously the response said `operation: move` regardless, masking caller off-by-one bugs.
-- **Notification `add` `toType` default** simplified to always `'email'` when not supplied (the previous `isset(to) ? 'email' : 'email'` ternary was dead code).
-- **Confirmation, notification, and field `add` paths** now apply the same explicit-null-as-delete semantics as their `update` counterparts. Previously a caller passing `conditionalLogic: null` on `add` had the literal null persisted; now the key is unset, matching update.
-- **`Filter_Abilities_MCP_Ability::stdclass_to_array()`** gained a recursion-depth guard (600 levels, just above PHP's default `json_decode` depth of 512) to prevent a pathological JSON payload from blowing the PHP stack.
-
-### Changed — Mailchimp `mappedFields` ergonomics
-
-The Gravity Forms Mailchimp add-on persists field-map settings as flat prefixed meta keys (`mappedFields_EMAIL`, `mappedFields_FNAME`, ...). Callers who wrote the intuitive nested form (`mappedFields: { EMAIL: "3", FNAME: "1.3" }`) would have their mapping silently ignored on submission. `manage-form-feed create` and `update` now accept either shape: a nested object is transparently flattened to the prefixed-key form before save. `list-form-feeds` and `get-form` (with `include_feeds`) re-nest on read, so introspection returns the same shape callers should write. Applies to other GF field-map settings too (`listFields`, `customFields`).
-
-### Changed — Field-type allow-list expanded
-
-`manage-form-field` now accepts: text, textarea, number, select, multiselect, checkbox, radio, hidden, html, section, page, name, email, website, phone, address, date, time, fileupload, consent, list, password, multiple-choice, image-choice (24 types). Post fields and pricing fields are still deliberately excluded — they require side-effect handling and would expand the surface meaningfully.
-
-### Changed — `conditionalLogic: null` now truly deletes
-
-Passing `conditionalLogic: null` in a confirmation/notification/field update used to leave a `key => null` on the merged object (via `array_merge`). GF tolerated this because its own runtime guards rely on `isset()`, but the serialised form was untidy and some other consumers can choke. The patch now `unset()`s any key the caller explicitly set to null — the documented "delete this property" idiom across all three abilities.
-
-### Added — Mailchimp pickers (conditionally registered)
-
-Registered only when the Gravity Forms Mailchimp add-on is active. They reuse the add-on's stored credentials via `gf_mailchimp()->initialize_api()`, so no API keys live in the abilities layer. Together they cover every value an MCP session needs to compose a Mailchimp feed end-to-end via `manage-form-feed`.
-
-- **`filter/list-mailchimp-audiences`** — every audience (list) reachable with the add-on's credentials, with `id`, `name`, `member_count`. The `id` is what goes in `mailchimpList` on a feed.
-- **`filter/list-mailchimp-tags`** — static tags on an audience, retrieved by hitting `/lists/{id}/segments?type=static` directly (the GF wrapper doesn't expose segments). Tag **names** — not ids — are what populate a feed's `tags` meta.
-- **`filter/list-mailchimp-merge-fields`** — merge fields on an audience, with `EMAIL` prepended (Mailchimp omits it from `/merge-fields` because it's implicit). The `tag` values are the keys you map Gravity Forms fields to inside `mappedFields`.
-- **`filter/list-mailchimp-groups`** — interest groupings + their interests on an audience. Interest ids populate a feed's `groups` meta.
-
-### Fixed
-
-- **`filter/list-forms` permission**: replaced the nonexistent `gravityforms_view_forms` capability with `gravityforms_edit_forms`. Gravity Forms has no separate "view forms" capability — form reading and editing are both gated by `gravityforms_edit_forms`. The `manage_options` fallback is retained, so this is a tightening for subscriber/contributor users only.
-
-### Notes
-
-- All new abilities re-check Gravity Forms capabilities per-call (`gravityforms_edit_forms` for reads / field / confirmation / feed writes; `gravityforms_create_form` for `manage-form create`; `gravityforms_delete_forms` for `manage-form delete`), each with a `manage_options` admin fallback.
-- The error envelope follows the existing convention: `[ 'error' => 'message' ]` on failure; flat data array on success.
+### Changed
+- Improves feed field mapping, duplicate-label entry output, form capability checks, and error reporting for invalid Gravity Forms writes.
+- Hardens local media tests so `.test` fixture downloads and Filter AI upload side effects do not mask Filter Abilities results.
 
 ## 1.7.0
 

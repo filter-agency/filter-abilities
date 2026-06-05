@@ -857,7 +857,10 @@ set-active is the retire mechanism for add-on integrations.', 'filter-abilities'
 					return [ 'error' => __( 'title is required for create.', 'filter-abilities' ) ];
 				}
 
-				$form_meta = [ 'title' => $title ];
+				$form_meta = [
+					'title'  => $title,
+					'fields' => [],
+				];
 				foreach ( [ 'fields', 'confirmations', 'notifications', 'settings' ] as $key ) {
 					if ( isset( $input[ $key ] ) ) {
 						$form_meta[ $key ] = $input[ $key ];

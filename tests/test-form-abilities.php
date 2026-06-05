@@ -937,7 +937,7 @@ if ( $mailchimp_active ) {
 		],
 		'dry_run'    => true,
 	] );
-	if ( isset( $bad_val['error'] ) && false !== stripos( $bad_val['error'], 'scalar' ) ) {
+	if ( isset( $bad_val['error'] ) && false !== stripos( $bad_val['error'], 'mappedFields[EMAIL]' ) && false !== stripos( $bad_val['error'], 'array' ) ) {
 		fa_form_test_pass( 'Non-scalar mappedFields value rejected with clear error' );
 	} else {
 		fa_form_test_fail( 'Non-scalar mappedFields NOT rejected', $bad_val );
