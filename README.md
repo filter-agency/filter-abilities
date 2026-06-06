@@ -90,6 +90,7 @@ Enhances the Content Management abilities with ACF field data (read/write). No s
 | `filter/list-form-feeds` | List add-on feeds (Mailchimp, HubSpot, etc.) for a form. `is_active: null` (default) returns all feeds including inactive — use this to audit retired feeds |
 | `filter/manage-form-feed` | Create / update / delete / set-active an add-on feed. Add-on `meta` shape is opaque — introspect via `list-form-feeds` first. Supports `dry_run` |
 | `filter/validate-conditional-logic` | Lint a `conditionalLogic` object against a form before writing it. Checks structure, operators, and that every `fieldId` references a real field — including composite sub-inputs like `"1.3"`. GF otherwise silently coerces these errors away |
+| `filter/find-form-usage` | Find every post/page embedding a form — the GF block, the `[gravityform]` shortcode, and any (incl. ACF) block holding the id in a form-shaped attribute key. Name-agnostic, so it works across sites. Returns `ref`/`path` that chain into `mutate-block` for repointing, plus `match_method` (exact vs heuristic) |
 | `filter/list-mailchimp-audiences` | (Mailchimp add-on only) List every Mailchimp audience (list). Returns the `id` to use as `mailchimpList` in a feed |
 | `filter/list-mailchimp-tags` | (Mailchimp add-on only) List static tags on an audience. Tag names — not ids — populate a feed's `tags` |
 | `filter/list-mailchimp-merge-fields` | (Mailchimp add-on only) List merge fields on an audience (`EMAIL`, `FNAME`, `LNAME`, plus custom). The `tag` values are the `mappedFields` keys |

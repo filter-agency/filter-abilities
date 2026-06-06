@@ -15,9 +15,21 @@ declare(strict_types=1);
  *
  * @since 1.2.0 list-forms, get-form-entries.
  * @since 1.8.0 get-form, manage-form, manage-form-field, manage-form-confirmation,
- *              list-form-feeds, manage-form-feed.
+ *              manage-form-notification, list-form-feeds, manage-form-feed,
+ *              validate-conditional-logic, list-mailchimp-*, find-form-usage.
  */
 class Filter_Abilities_Form_Management extends Filter_Abilities_Module_Base {
+
+	/**
+	 * Vendored GravityKit block reader/CRUD, booted lazily by find-form-usage so
+	 * a request that never scans for embeds pays nothing for the engine. Reused
+	 * (rather than re-walking parse_blocks) so the path/ref we return are
+	 * byte-identical to get-post-blocks and chain straight into mutate-block.
+	 *
+	 * @since 1.8.0
+	 * @var \GravityKit\BlockAPI\Block_CRUD|null
+	 */
+	private $block_crud = null;
 
 	/**
 	 * Field types supported by `manage-form-field`. `GF_Fields::create()` falls
@@ -518,6 +530,45 @@ set-active is the retire mechanism for add-on integrations.', 'filter-abilities'
 			'permission_callback' => $form_reader,
 		] );
 
+		$this->register_ability( 'filter/find-form-usage', [
+			'label'               => __( 'Find Form Usage', 'filter-abilities' ),
+			'description'         => __( 'Find every post/page that embeds a given Gravity Form. Detects the Gravity Forms block (gravityforms/form), the [gravityform] shortcode, and ANY block (including ACF blocks) that holds the form id in a form-shaped attribute key (e.g. gravity-form, gravity-form-id, form_id) — so it works across sites without knowing their block names. Each match returns embed_type, match_method ("exact" for the GF block/shortcode, "heuristic" for attribute-key matches which a multi-form-plugin site should dry-run before repointing), the field_key + attribute_path holding the id, and the block ref/path so the result chains straight into mutate-block for repointing. Forms set via theme options, widgets, or template gravity_form() calls live outside post_content and are out of scope. Read-only.', 'filter-abilities' ),
+			'category'            => 'filter-forms',
+			'input_schema'        => [
+				'type'       => 'object',
+				'properties' => [
+					'form_id'                 => [
+						'type'        => 'integer',
+						'description' => __( 'Gravity Forms form ID to locate.', 'filter-abilities' ),
+					],
+					'post_types'              => [
+						'type'        => 'array',
+						'items'       => [ 'type' => 'string' ],
+						'description' => __( 'Restrict to these post types. Default: all public post types (plus wp_block when include_synced_patterns is on).', 'filter-abilities' ),
+					],
+					'post_statuses'           => [
+						'type'        => 'array',
+						'items'       => [ 'type' => 'string' ],
+						'description' => __( 'Post statuses to scan. Default ["publish"]. Use ["any"] for all.', 'filter-abilities' ),
+					],
+					'include_synced_patterns' => [
+						'type'        => 'boolean',
+						'default'     => true,
+						'description' => __( 'Also resolve forms embedded via reusable blocks (wp_block / core/block) referenced by matched posts, and scan wp_block posts directly.', 'filter-abilities' ),
+					],
+					'scan_all'                => [
+						'type'        => 'boolean',
+						'default'     => false,
+						'description' => __( 'Bypass the LIKE prefilter and parse every candidate post. Slower but exhaustive — use only if a site stores the id under a key no form-reference token matches.', 'filter-abilities' ),
+					],
+				],
+				'required'   => [ 'form_id' ],
+			],
+			'output_schema'       => [ 'type' => 'object' ],
+			'execute_callback'    => [ $this, 'execute_find_form_usage' ],
+			'permission_callback' => $form_reader,
+		] );
+
 		// =====================================================================
 		// Add-on pickers — registered only when the relevant add-on is active.
 		// These surface external service config (Mailchimp audiences, tags,
@@ -827,6 +878,88 @@ set-active is the retire mechanism for add-on integrations.', 'filter-abilities'
 			'valid'   => empty( $errors ),
 			'errors'  => $errors,
 			'operators_reference' => self::CONDITIONAL_LOGIC_OPERATORS,
+		];
+	}
+
+	/**
+	 * Find every post/page that embeds a given Gravity Form.
+	 *
+	 * Detection is name-agnostic so it works across sites:
+	 *  - Tier 1 (exact): the gravityforms/form block (formId) and the
+	 *    [gravityform id=N] shortcode — identical on every GF install.
+	 *  - Tier 2 (heuristic): any block whose attributes (incl. ACF's nested
+	 *    `data`) carry a form-shaped key whose numeric value equals form_id.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param array<string, mixed> $input
+	 * @return array<string, mixed>
+	 */
+	public function execute_find_form_usage( array $input ): array {
+		$form_id = absint( $input['form_id'] ?? 0 );
+
+		if ( 0 === $form_id || ! GFAPI::form_id_exists( $form_id ) ) {
+			return [ 'error' => __( 'Valid form_id is required.', 'filter-abilities' ) ];
+		}
+
+		$form = GFAPI::get_form( $form_id );
+		if ( ! is_array( $form ) ) {
+			return [ 'error' => __( 'Failed to load form.', 'filter-abilities' ) ];
+		}
+
+		$include_synced = ! array_key_exists( 'include_synced_patterns', $input ) || (bool) $input['include_synced_patterns'];
+		$scan_all       = ! empty( $input['scan_all'] );
+
+		// Resolve post types.
+		if ( ! empty( $input['post_types'] ) && is_array( $input['post_types'] ) ) {
+			$post_types = array_values( array_filter( array_map( 'sanitize_key', $input['post_types'] ) ) );
+		} else {
+			$post_types = array_values( get_post_types( [ 'public' => true ] ) );
+			if ( $include_synced ) {
+				$post_types[] = 'wp_block';
+			}
+		}
+		$post_types = array_values( array_unique( array_filter( $post_types ) ) );
+
+		// Resolve statuses.
+		if ( ! empty( $input['post_statuses'] ) && is_array( $input['post_statuses'] ) ) {
+			$post_statuses = array_values( array_filter( array_map( 'sanitize_key', $input['post_statuses'] ) ) );
+		} else {
+			$post_statuses = [ 'publish' ];
+		}
+
+		$candidate_ids = $this->find_form_usage_candidates( $post_types, $post_statuses, $scan_all );
+
+		$this->boot_block_engine();
+
+		$matches    = [];
+		$seen_block = []; // post_id:path dedupe guard for block hits.
+
+		foreach ( $candidate_ids as $post_id ) {
+			$post = get_post( $post_id );
+			if ( ! $post ) {
+				continue;
+			}
+			$this->scan_post_for_form( $post, $form_id, null, $matches, $seen_block );
+
+			// Resolve synced patterns (core/block) referenced by this post.
+			if ( $include_synced ) {
+				foreach ( $this->find_synced_pattern_ids( $post->post_content ) as $wp_block_id ) {
+					$wp_block = get_post( $wp_block_id );
+					if ( $wp_block && 'wp_block' === $wp_block->post_type ) {
+						// Attribute the hit to the HOST post, flag the pattern.
+						$this->scan_post_for_form( $wp_block, $form_id, $post_id, $matches, $seen_block );
+					}
+				}
+			}
+		}
+
+		return [
+			'form_id'        => $form_id,
+			'form_title'     => (string) ( $form['title'] ?? '' ),
+			'form_is_active' => (bool) ( $form['is_active'] ?? true ),
+			'total'          => count( $matches ),
+			'matches'        => $matches,
 		];
 	}
 
@@ -2997,5 +3130,472 @@ set-active is the retire mechanism for add-on integrations.', 'filter-abilities'
 		}
 
 		return $data;
+	}
+
+	// =========================================================================
+	// find-form-usage helpers
+	// =========================================================================
+
+	/**
+	 * Lazily boot the vendored GravityKit block reader for embed scanning.
+	 *
+	 * Mirrors Filter_Abilities_Block_Editing::boot_engine() but only wires the
+	 * Block_CRUD (the reader) — find-form-usage never mutates, so the Mutator
+	 * and Registry aren't needed.
+	 *
+	 * @since 1.8.0
+	 */
+	private function boot_block_engine(): void {
+		if ( null !== $this->block_crud ) {
+			return;
+		}
+		require_once FILTER_ABILITIES_PATH . 'includes/block-engine/loader.php';
+
+		$preferences = new \GravityKit\BlockAPI\Preferences();
+		$inventory   = new \GravityKit\BlockAPI\Block_Inventory();
+		$safety      = new \GravityKit\BlockAPI\Block_Safety();
+		$transformer = new \GravityKit\BlockAPI\HTML_Transformer();
+
+		$this->block_crud = new \GravityKit\BlockAPI\Block_CRUD( $preferences, $safety, $transformer, $inventory );
+	}
+
+	/**
+	 * The form-reference token list — single source of truth for both the SQL
+	 * LIKE prefilter and the attribute-key heuristic. A site that stores form
+	 * ids under a non-obvious key adds its token here, once, via the filter.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @return string[]
+	 */
+	private function form_reference_tokens(): array {
+		$tokens = [
+			'gravity-form',
+			'gravity_form',
+			'gravityform',
+			'gform',
+			'gf-form',
+			'gf_form',
+			'form-id',
+			'form_id',
+			'formid',
+		];
+
+		/**
+		 * Filter the tokens that mark a block attribute (or post_content
+		 * substring) as a Gravity Forms reference. Drives both the LIKE
+		 * prefilter and the attribute-key heuristic in find-form-usage.
+		 *
+		 * @since 1.8.0
+		 *
+		 * @param string[] $tokens Default form-reference tokens.
+		 */
+		$tokens = apply_filters( 'filter_abilities_form_reference_keys', $tokens );
+
+		return array_values( array_unique( array_filter( array_map( 'strval', (array) $tokens ) ) ) );
+	}
+
+	/**
+	 * Token sequences for key matching: each form-reference token split into
+	 * lowercased words (on separators AND camelCase boundaries). A key matches
+	 * only when its own word-list contains one of these sequences contiguously
+	 * — so "form_id" matches the key `gravity-form-id` / `formId` but NOT
+	 * `platform_id` (whose words are [platform, id], never [form, id]). This is
+	 * what stops a substring like "...formid..." inside an unrelated key from
+	 * producing a false embed hit.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @return array<int, string[]>
+	 */
+	private function form_reference_token_sequences(): array {
+		$seqs = [];
+		foreach ( $this->form_reference_tokens() as $t ) {
+			$words = $this->split_identifier_words( $t );
+			if ( ! empty( $words ) ) {
+				$seqs[ implode( '.', $words ) ] = $words;
+			}
+		}
+		return array_values( $seqs );
+	}
+
+	/**
+	 * Split an identifier into lowercased words on separators (- _ space) and
+	 * camelCase boundaries. "gravityFormId" => [gravity, form, id].
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param string $s
+	 * @return string[]
+	 */
+	private function split_identifier_words( string $s ): array {
+		$s     = preg_replace( '/([a-z0-9])([A-Z])/', '$1 $2', $s );
+		$parts = preg_split( '/[^a-zA-Z0-9]+/', (string) $s );
+		$parts = array_map( 'strtolower', is_array( $parts ) ? $parts : [] );
+		return array_values( array_filter( $parts, static fn( $p ) => '' !== $p ) );
+	}
+
+	/**
+	 * Candidate post IDs to parse: a coarse $wpdb LIKE prefilter on universal
+	 * GF signatures plus the form-reference tokens. Over-selection is harmless
+	 * (the authoritative integer compare happens after parse_blocks); the only
+	 * risk is under-selection, which `scan_all` and the token filter cover.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param string[] $post_types
+	 * @param string[] $post_statuses
+	 * @param bool     $scan_all
+	 * @return int[]
+	 */
+	private function find_form_usage_candidates( array $post_types, array $post_statuses, bool $scan_all ): array {
+		global $wpdb;
+
+		if ( empty( $post_types ) ) {
+			return [];
+		}
+
+		$where  = [];
+		$params = [];
+
+		$pt_ph   = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+		$where[] = "post_type IN ($pt_ph)";
+		array_push( $params, ...$post_types );
+
+		if ( ! empty( $post_statuses ) && ! in_array( 'any', $post_statuses, true ) ) {
+			$st_ph   = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
+			$where[] = "post_status IN ($st_ph)";
+			array_push( $params, ...$post_statuses );
+		}
+
+		if ( ! $scan_all ) {
+			$like_tokens = array_merge(
+				[ 'wp:gravityforms/form', '[gravityform', '"formId"' ],
+				$this->form_reference_tokens()
+			);
+			$likes = [];
+			foreach ( $like_tokens as $token ) {
+				$likes[]  = 'post_content LIKE %s';
+				$params[] = '%' . $wpdb->esc_like( $token ) . '%';
+			}
+			if ( ! empty( $likes ) ) {
+				$where[] = '( ' . implode( ' OR ', $likes ) . ' )';
+			}
+		}
+
+		$sql = "SELECT ID FROM {$wpdb->posts} WHERE " . implode( ' AND ', $where ) . ' ORDER BY ID ASC';
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$ids = $wpdb->get_col( $wpdb->prepare( $sql, $params ) );
+
+		return array_map( 'intval', (array) $ids );
+	}
+
+	/**
+	 * Scan a single post's blocks + shortcodes for embeds of $form_id.
+	 *
+	 * When $host_post_id is non-null, $scanned is a reusable block (wp_block)
+	 * referenced by that host: matches are attributed to the host post with
+	 * via_synced_pattern set to the wp_block id, but ref/path still address the
+	 * wp_block tree (that's where a repoint must run).
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param WP_Post              $scanned      Post whose content is parsed.
+	 * @param int                  $form_id
+	 * @param int|null             $host_post_id Host page id when $scanned is a wp_block.
+	 * @param array<int,mixed>     $matches      (by ref) accumulator.
+	 * @param array<string,bool>   $seen         (by ref) dedupe guard.
+	 */
+	private function scan_post_for_form( WP_Post $scanned, int $form_id, ?int $host_post_id, array &$matches, array &$seen ): void {
+		$owner = ( null !== $host_post_id ) ? get_post( $host_post_id ) : $scanned;
+		if ( ! $owner instanceof WP_Post ) {
+			return;
+		}
+		$via               = ( null !== $host_post_id ) ? (int) $scanned->ID : null;
+		$token_sequences   = $this->form_reference_token_sequences();
+
+		if ( $this->block_crud ) {
+			$blocks = $this->block_crud->get_blocks( (int) $scanned->ID, false, false );
+			if ( is_array( $blocks ) ) {
+				$this->scan_blocks_for_form( $blocks, $form_id, $token_sequences, $owner, $via, $matches, $seen );
+			}
+		}
+
+		$this->scan_shortcodes_for_form( (string) $scanned->post_content, $form_id, $owner, $via, $matches, $seen );
+	}
+
+	/**
+	 * Recurse a formatted block tree (from Block_CRUD::get_blocks) recording
+	 * every block that embeds $form_id.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param array<int,mixed>   $blocks
+	 * @param int                $form_id
+	 * @param string[]           $token_sequences
+	 * @param WP_Post            $owner
+	 * @param int|null           $via
+	 * @param array<int,mixed>   $matches (by ref)
+	 * @param array<string,bool> $seen    (by ref)
+	 */
+	private function scan_blocks_for_form( array $blocks, int $form_id, array $token_sequences, WP_Post $owner, ?int $via, array &$matches, array &$seen ): void {
+		foreach ( $blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+
+			$match = $this->block_form_match( $block, $form_id, $token_sequences );
+			if ( null !== $match ) {
+				$path = ( isset( $block['path'] ) && is_array( $block['path'] ) ) ? array_map( 'intval', $block['path'] ) : [];
+				$ref  = isset( $block['ref'] ) ? (string) $block['ref'] : null;
+				$key  = $owner->ID . '|' . ( $via ?? 0 ) . '|' . implode( '.', $path ) . '|' . $match['embed_type'] . '|' . $match['field_key'];
+				if ( ! isset( $seen[ $key ] ) ) {
+					$seen[ $key ] = true;
+					$matches[]    = array_merge(
+						[
+							'post_id'            => (int) $owner->ID,
+							'post_title'         => get_the_title( $owner ),
+							'post_type'          => $owner->post_type,
+							'post_status'        => $owner->post_status,
+							'permalink'          => (string) get_permalink( $owner ),
+							'ref'                => $ref,
+							'path'               => $path,
+							'via_synced_pattern' => $via,
+						],
+						$match
+					);
+				}
+			}
+
+			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+				$this->scan_blocks_for_form( $block['innerBlocks'], $form_id, $token_sequences, $owner, $via, $matches, $seen );
+			}
+		}
+	}
+
+	/**
+	 * Decide whether a single formatted block embeds $form_id, and how.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param array<string,mixed> $block
+	 * @param int                 $form_id
+	 * @param string[]            $token_sequences
+	 * @return array<string,mixed>|null Match descriptor or null.
+	 */
+	private function block_form_match( array $block, int $form_id, array $token_sequences ): ?array {
+		$name  = (string) ( $block['name'] ?? '' );
+		$attrs = ( isset( $block['attributes'] ) && is_array( $block['attributes'] ) ) ? $block['attributes'] : [];
+
+		// Tier 1 — the native Gravity Forms block. Exact, universal.
+		if ( 'gravityforms/form' === $name ) {
+			$raw = $attrs['formId'] ?? null;
+			if ( is_numeric( $raw ) && (int) $raw === $form_id ) {
+				return [
+					'embed_type'     => 'gf-block',
+					'block_name'     => $name,
+					'field_key'      => 'formId',
+					'attribute_path' => [ 'formId' ],
+					'match_method'   => 'exact',
+				];
+			}
+			return null;
+		}
+
+		// Tier 2 — heuristic: any block (ACF or otherwise) carrying a
+		// form-shaped attribute key whose numeric value equals form_id.
+		$hit = $this->find_form_id_in_attributes( $attrs, $form_id, $token_sequences );
+		if ( null !== $hit ) {
+			return [
+				'embed_type'     => 'block',
+				'block_name'     => $name,
+				'field_key'      => $hit['field_key'],
+				'attribute_path' => $hit['attribute_path'],
+				'match_method'   => 'heuristic',
+			];
+		}
+
+		return null;
+	}
+
+	/**
+	 * Depth-first search of a block's attributes (incl. nested ACF `data`) for
+	 * a form-shaped key whose numeric value equals $form_id. Returns the
+	 * attribute path + leaf key of the first hit, or null.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param array<mixed>  $attrs
+	 * @param int           $form_id
+	 * @param string[]      $token_sequences
+	 * @param array<string> $path_prefix
+	 * @param int           $depth
+	 * @return array{attribute_path: string[], field_key: string}|null
+	 */
+	private function find_form_id_in_attributes( array $attrs, int $form_id, array $token_sequences, array $path_prefix = [], int $depth = 0 ): ?array {
+		if ( $depth > 8 ) {
+			return null;
+		}
+
+		foreach ( $attrs as $key => $value ) {
+			// Skip ACF field-key pointers (_field) and the gk metadata subtree.
+			if ( is_string( $key ) && ( '' === $key || '_' === $key[0] ) ) {
+				continue;
+			}
+			if ( 'metadata' === $key ) {
+				continue;
+			}
+
+			$current_path = array_merge( $path_prefix, [ (string) $key ] );
+
+			if ( is_array( $value ) ) {
+				$nested = $this->find_form_id_in_attributes( $value, $form_id, $token_sequences, $current_path, $depth + 1 );
+				if ( null !== $nested ) {
+					return $nested;
+				}
+				continue;
+			}
+
+			if ( ( is_string( $value ) || is_int( $value ) || is_float( $value ) )
+				&& is_numeric( $value )
+				&& (int) $value === $form_id
+				&& $this->key_is_form_reference( (string) $key, $token_sequences )
+			) {
+				return [
+					'attribute_path' => $current_path,
+					'field_key'      => (string) $key,
+				];
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Does an attribute key look like a Gravity Forms reference? True when the
+	 * key's word-list contains a token sequence contiguously (word-boundary
+	 * match), so `gravity-form-id` and `formId` match but `platform_id` and
+	 * `transformId` don't.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param string             $key
+	 * @param array<int,string[]> $token_sequences
+	 * @return bool
+	 */
+	private function key_is_form_reference( string $key, array $token_sequences ): bool {
+		$words = $this->split_identifier_words( $key );
+		if ( empty( $words ) ) {
+			return false;
+		}
+		$word_count = count( $words );
+		foreach ( $token_sequences as $seq ) {
+			$seq_count = count( $seq );
+			if ( 0 === $seq_count || $seq_count > $word_count ) {
+				continue;
+			}
+			for ( $i = 0; $i + $seq_count <= $word_count; $i++ ) {
+				$matched = true;
+				for ( $j = 0; $j < $seq_count; $j++ ) {
+					if ( $words[ $i + $j ] !== $seq[ $j ] ) {
+						$matched = false;
+						break;
+					}
+				}
+				if ( $matched ) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Record [gravityform id="N"] shortcode embeds of $form_id. Shortcodes are
+	 * not block-addressable, so ref/path are null; each occurrence is its own
+	 * row (a form embedded twice yields two rows).
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param string             $content
+	 * @param int                $form_id
+	 * @param WP_Post            $owner
+	 * @param int|null           $via
+	 * @param array<int,mixed>   $matches (by ref)
+	 * @param array<string,bool> $seen    (by ref)
+	 */
+	private function scan_shortcodes_for_form( string $content, int $form_id, WP_Post $owner, ?int $via, array &$matches, array &$seen ): void {
+		if ( false === strpos( $content, '[gravityform' ) ) {
+			return;
+		}
+		if ( ! preg_match_all( '/\[gravityform[^\]]*\bid=["\']?(\d+)/i', $content, $m ) ) {
+			return;
+		}
+		foreach ( $m[1] as $i => $found_id ) {
+			if ( (int) $found_id !== $form_id ) {
+				continue;
+			}
+			$key = $owner->ID . '|' . ( $via ?? 0 ) . '|shortcode|' . $i;
+			if ( isset( $seen[ $key ] ) ) {
+				continue;
+			}
+			$seen[ $key ] = true;
+			$matches[]    = [
+				'post_id'            => (int) $owner->ID,
+				'post_title'         => get_the_title( $owner ),
+				'post_type'          => $owner->post_type,
+				'post_status'        => $owner->post_status,
+				'permalink'          => (string) get_permalink( $owner ),
+				'embed_type'         => 'shortcode',
+				'block_name'         => '',
+				'field_key'          => 'id',
+				'attribute_path'     => [],
+				'match_method'       => 'exact',
+				'ref'                => null,
+				'path'               => [],
+				'via_synced_pattern' => $via,
+			];
+		}
+	}
+
+	/**
+	 * Extract the wp_block ids referenced by core/block (synced pattern) blocks
+	 * in a content string.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param string $content
+	 * @return int[]
+	 */
+	private function find_synced_pattern_ids( string $content ): array {
+		if ( false === strpos( $content, 'wp:block' ) ) {
+			return [];
+		}
+		$ids = [];
+		$this->collect_core_block_refs( parse_blocks( $content ), $ids );
+		return array_values( array_unique( array_filter( array_map( 'intval', $ids ) ) ) );
+	}
+
+	/**
+	 * Recurse raw parse_blocks output collecting core/block ref ids.
+	 *
+	 * @since 1.8.0
+	 *
+	 * @param array<int,mixed> $blocks
+	 * @param int[]            $ids (by ref)
+	 */
+	private function collect_core_block_refs( array $blocks, array &$ids ): void {
+		foreach ( $blocks as $block ) {
+			if ( ! is_array( $block ) ) {
+				continue;
+			}
+			if ( ( $block['blockName'] ?? '' ) === 'core/block' && ! empty( $block['attrs']['ref'] ) ) {
+				$ids[] = (int) $block['attrs']['ref'];
+			}
+			if ( ! empty( $block['innerBlocks'] ) && is_array( $block['innerBlocks'] ) ) {
+				$this->collect_core_block_refs( $block['innerBlocks'], $ids );
+			}
+		}
 	}
 }
