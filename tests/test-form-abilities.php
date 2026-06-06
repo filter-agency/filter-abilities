@@ -1200,6 +1200,156 @@ if ( is_wp_error( $sub_user_id ) ) {
 	wp_delete_user( $sub_user_id );
 }
 
+// ─── Test 25: find-form-usage ───────────────────────────────────────────────
+
+fa_form_test_header( 'filter/find-form-usage — GF block, shortcode, heuristic ACF block, integer-compare, synced pattern' );
+
+if ( ! wp_get_ability( 'filter/find-form-usage' ) ) {
+	fa_form_test_fail( 'filter/find-form-usage not registered' );
+} else {
+	// Throwaway target form + a decoy form to prove integer-compare precision.
+	$usage_form = fa_form_make( 'usage-target' );
+	$decoy_id   = $usage_form . '0'; // e.g. target 12 -> decoy "120"; never equal.
+
+	$created_posts = [];
+
+	// (a) GF block embed.
+	$created_posts['gf_block'] = wp_insert_post( [
+		'post_title'   => 'FA usage — GF block',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_content' => '<!-- wp:gravityforms/form {"formId":"' . $usage_form . '","title":true} /-->',
+	] );
+
+	// (b) Shortcode embed (twice — expect two rows).
+	$created_posts['shortcode'] = wp_insert_post( [
+		'post_title'   => 'FA usage — shortcode x2',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_content' => '[gravityform id="' . $usage_form . '" title="false"]' . "\n\n" . '[gravityform id="' . $usage_form . '"]',
+	] );
+
+	// (c) Heuristic ACF-style block (site-specific name, form id in nested data).
+	$created_posts['acf'] = wp_insert_post( [
+		'post_title'   => 'FA usage — ACF heuristic',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_content' => '<!-- wp:acf/some-bespoke-block {"name":"acf/some-bespoke-block","data":{"gravity-form-id":"' . $usage_form . '","_gravity-form-id":"field_abc"},"mode":"preview"} /-->',
+	] );
+
+	// (d) Decoy: references "120" when we search "12" — must NOT match.
+	$created_posts['decoy'] = wp_insert_post( [
+		'post_title'   => 'FA usage — decoy',
+		'post_status'  => 'publish',
+		'post_type'    => 'page',
+		'post_content' => '<!-- wp:gravityforms/form {"formId":"' . $decoy_id . '"} /-->',
+	] );
+
+	$usage = fa_run_ability( 'filter/find-form-usage', [ 'form_id' => $usage_form ] );
+
+	if ( isset( $usage['error'] ) ) {
+		fa_form_test_fail( 'find-form-usage errored', $usage['error'] );
+	} else {
+		$by_post = [];
+		foreach ( $usage['matches'] ?? [] as $m ) {
+			$by_post[ (int) $m['post_id'] ][] = $m;
+		}
+
+		// (a) GF block — exact.
+		$gf = $by_post[ (int) $created_posts['gf_block'] ][0] ?? null;
+		if ( $gf && 'gf-block' === $gf['embed_type'] && 'exact' === $gf['match_method'] && 'formId' === $gf['field_key'] ) {
+			fa_form_test_pass( 'GF block detected as gf-block/exact with field_key=formId' );
+		} else {
+			fa_form_test_fail( 'GF block not detected correctly', $gf );
+		}
+
+		// (b) Shortcode — two rows.
+		$sc = $by_post[ (int) $created_posts['shortcode'] ] ?? [];
+		$sc = array_values( array_filter( $sc, static fn( $m ) => 'shortcode' === $m['embed_type'] ) );
+		if ( count( $sc ) === 2 ) {
+			fa_form_test_pass( 'Shortcode embedded twice returns two rows' );
+		} else {
+			fa_form_test_fail( 'Expected 2 shortcode rows, got ' . count( $sc ), $sc );
+		}
+
+		// (c) Heuristic ACF block — site-specific name caught with no config.
+		$acf = $by_post[ (int) $created_posts['acf'] ][0] ?? null;
+		if ( $acf && 'heuristic' === $acf['match_method'] && 'gravity-form-id' === $acf['field_key'] ) {
+			fa_form_test_pass( 'Bespoke ACF block detected via heuristic (field_key=gravity-form-id, no hard-coded name)' );
+			if ( ( $acf['attribute_path'] ?? [] ) === [ 'data', 'gravity-form-id' ] ) {
+				fa_form_test_pass( 'attribute_path points at the nested data key for repointing' );
+			} else {
+				fa_form_test_fail( 'attribute_path wrong', $acf['attribute_path'] ?? null );
+			}
+		} else {
+			fa_form_test_fail( 'Heuristic ACF detection failed', $acf );
+		}
+
+		// (d) Decoy must be absent.
+		if ( ! isset( $by_post[ (int) $created_posts['decoy'] ] ) ) {
+			fa_form_test_pass( "Decoy referencing {$decoy_id} did NOT match search for {$usage_form} (integer compare)" );
+		} else {
+			fa_form_test_fail( 'Decoy wrongly matched — integer compare broken', $by_post[ (int) $created_posts['decoy'] ] );
+		}
+
+		// form metadata echoed.
+		if ( (int) ( $usage['form_id'] ?? 0 ) === $usage_form && array_key_exists( 'form_is_active', $usage ) ) {
+			fa_form_test_pass( 'Response echoes form_id + form_is_active' );
+		} else {
+			fa_form_test_fail( 'Response missing form metadata', $usage );
+		}
+	}
+
+	// (e) Unembedded form returns total 0.
+	$empty_form = fa_form_make( 'usage-unused' );
+	$empty      = fa_run_ability( 'filter/find-form-usage', [ 'form_id' => $empty_form ] );
+	if ( ! isset( $empty['error'] ) && 0 === (int) ( $empty['total'] ?? -1 ) ) {
+		fa_form_test_pass( 'Unembedded form returns total: 0' );
+	} else {
+		fa_form_test_fail( 'Unembedded form should return total 0', $empty );
+	}
+
+	// (f) Synced pattern: a reusable block embeds the form, a page references it.
+	$reusable = wp_insert_post( [
+		'post_title'   => 'FA usage — reusable',
+		'post_status'  => 'publish',
+		'post_type'    => 'wp_block',
+		'post_content' => '<!-- wp:gravityforms/form {"formId":"' . $usage_form . '"} /-->',
+	] );
+	if ( $reusable && ! is_wp_error( $reusable ) ) {
+		$created_posts['host'] = wp_insert_post( [
+			'post_title'   => 'FA usage — host of reusable',
+			'post_status'  => 'publish',
+			'post_type'    => 'page',
+			'post_content' => '<!-- wp:block {"ref":' . (int) $reusable . '} /-->',
+		] );
+		$created_posts['reusable'] = $reusable;
+
+		$with_synced = fa_run_ability( 'filter/find-form-usage', [ 'form_id' => $usage_form, 'include_synced_patterns' => true ] );
+		$host_row    = null;
+		foreach ( $with_synced['matches'] ?? [] as $m ) {
+			if ( (int) $m['post_id'] === (int) $created_posts['host'] && ! empty( $m['via_synced_pattern'] ) ) {
+				$host_row = $m;
+				break;
+			}
+		}
+		if ( $host_row && (int) $host_row['via_synced_pattern'] === (int) $reusable ) {
+			fa_form_test_pass( 'Synced pattern surfaced: host page flagged with via_synced_pattern = wp_block id' );
+		} else {
+			fa_form_test_fail( 'Synced pattern not surfaced against host', $with_synced['matches'] ?? null );
+		}
+	} else {
+		fa_form_test_skip( 'Could not create wp_block for synced-pattern test' );
+	}
+
+	// Cleanup posts (forms are cleaned by the shutdown hook).
+	foreach ( $created_posts as $pid ) {
+		if ( $pid && ! is_wp_error( $pid ) ) {
+			wp_delete_post( (int) $pid, true );
+		}
+	}
+}
+
 // ─── Summary ────────────────────────────────────────────────────────────────
 
 echo "\n" . str_repeat( '═', 60 ) . "\n";

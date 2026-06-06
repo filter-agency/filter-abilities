@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.8.1
+
+### Added
+- Adds `filter/find-form-usage`: finds every post/page embedding a given Gravity Form — the GF block, the `[gravityform]` shortcode, and any block (including ACF) holding the form id in a form-shaped attribute key. Detection is name-agnostic so it works across sites, tunable via the `filter_abilities_form_reference_keys` filter, and returns the block ref/path so results chain into `mutate-block` for repointing.
+
 ## 1.8.0
 
 ### Added
